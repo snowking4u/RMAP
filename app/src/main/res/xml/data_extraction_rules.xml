@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="home_rent_manager.db" />
+        <include domain="database" path="home_rent_manager.db-wal" />
+        <include domain="database" path="home_rent_manager.db-shm" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="cache" path="." />
+        <exclude domain="file" path="backup_tmp/" />
+        <exclude domain="file" path="restore_safety/" />
+        <exclude domain="file" path="pdfs/" />
+        <exclude domain="no_backup" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="home_rent_manager.db" />
+        <include domain="database" path="home_rent_manager.db-wal" />
+        <include domain="database" path="home_rent_manager.db-shm" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="cache" path="." />
+        <exclude domain="file" path="backup_tmp/" />
+        <exclude domain="file" path="restore_safety/" />
+        <exclude domain="file" path="pdfs/" />
+    </device-transfer>
+</data-extraction-rules>

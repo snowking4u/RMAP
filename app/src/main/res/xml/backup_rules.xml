@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Primary Room database (includes committed WAL state when Android captures it). -->
+    <include domain="database" path="home_rent_manager.db" />
+    <include domain="database" path="home_rent_manager.db-wal" />
+    <include domain="database" path="home_rent_manager.db-shm" />
+    <!-- Settings live inside the database. Shared preferences are included for forward compatibility. -->
+    <include domain="sharedpref" path="." />
+    <!-- Never back up caches, generated PDFs, or temporary restore/backup staging files. -->
+    <exclude domain="cache" path="." />
+    <exclude domain="file" path="backup_tmp/" />
+    <exclude domain="file" path="restore_safety/" />
+    <exclude domain="file" path="pdfs/" />
+    <exclude domain="no_backup" path="." />
+</full-backup-content>
