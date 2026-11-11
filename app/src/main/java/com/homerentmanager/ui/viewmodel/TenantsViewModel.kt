@@ -28,7 +28,7 @@ class TenantsViewModel(private val container: AppContainer) : HrmViewModel() {
         TenantsUiState(
             loading = false,
             tenants = tenants,
-            vacantRooms = rooms.filter { it.activeTenancyId == null },
+            vacantRooms = rooms.filter { it.room.isActive && it.activeTenancyId == null },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TenantsUiState())
 
@@ -67,7 +67,7 @@ class TenantDetailViewModel(
             summary = summary,
             tenancies = tenancies,
             bills = bills,
-            vacantRooms = rooms.filter { it.activeTenancyId == null },
+            vacantRooms = rooms.filter { it.room.isActive && it.activeTenancyId == null },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TenantDetailUiState())
 

@@ -102,7 +102,7 @@ If `keystore.properties` is missing, the release build is unsigned and cannot be
 - [ ] `./gradlew :app:testDebugUnitTest` passes.
 - [ ] `./gradlew :app:assembleRelease` succeeds.
 - [ ] `apksigner verify --print-certs` shows the expected certificate.
-- [ ] Fresh install shows exactly seven rooms.
+- [ ] Fresh install shows the seven starter rooms and **Add Room** works.
 - [ ] Upgrade install preserves data (test with a previous version when changing schema).
 - [ ] Manual backup/restore round-trip tested on a real device.
 - [ ] Auto Backup settings and quota screen reviewed.

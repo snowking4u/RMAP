@@ -2,18 +2,19 @@ package com.homerentmanager.data.repository
 
 import androidx.room.withTransaction
 import com.homerentmanager.data.dao.RoomDao
+import com.homerentmanager.data.dao.TenancyDao
 import com.homerentmanager.data.entity.RoomEntity
 import com.homerentmanager.data.local.DatabaseProvider
 import com.homerentmanager.data.model.RoomOccupancy
 import com.homerentmanager.domain.ConflictException
 import com.homerentmanager.domain.NotFoundException
 import com.homerentmanager.domain.ValidationException
-import com.homerentmanager.util.Validators
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
 class RoomRepository(private val provider: DatabaseProvider) {
     private val dao: RoomDao get() = provider.database.roomDao()
+    private val tenancyDao: TenancyDao get() = provider.database.tenancyDao()
 
     fun observeOccupancy(): Flow<List<RoomOccupancy>> = dao.observeOccupancy()
 
@@ -26,6 +27,40 @@ class RoomRepository(private val provider: DatabaseProvider) {
     suspend fun getAll(): List<RoomEntity> = dao.getAll()
 
     suspend fun get(roomId: UUID): RoomEntity? = dao.getById(roomId)
+
+    /**
+     * Adds a new managed room. Rooms are never hard-deleted, so every bill and tenancy always
+     * keeps a valid foreign-key target. New rooms start active and can be archived later.
+     */
+    suspend fun addRoom(
+        roomNumber: String,
+        floor: String,
+        defaultRentPaise: Long,
+        defaultElectricityRate: Double,
+        notes: String,
+    ): UUID {
+        val cleanNumber = roomNumber.trim()
+        if (cleanNumber.isEmpty()) throw ValidationException("Room number is required")
+        if (defaultRentPaise <= 0) throw ValidationException("Default rent must be greater than zero")
+        if (defaultElectricityRate < 0) throw ValidationException("Electricity rate cannot be negative")
+
+        return provider.database.withTransaction {
+            val duplicate = dao.getByNumber(cleanNumber)
+            if (duplicate != null) {
+                throw ConflictException("Room number '$cleanNumber' is already in use")
+            }
+            val room = RoomEntity(
+                roomNumber = cleanNumber,
+                floor = floor.trim(),
+                defaultRentPaise = defaultRentPaise,
+                defaultElectricityRate = defaultElectricityRate,
+                notes = notes.trim(),
+                isActive = true,
+            )
+            dao.insert(room)
+            room.id
+        }
+    }
 
     suspend fun updateRoom(
         roomId: UUID,
@@ -55,6 +90,24 @@ class RoomRepository(private val provider: DatabaseProvider) {
                     notes = notes.trim(),
                 ),
             )
+        }
+    }
+
+    /**
+     * Archives or restores a room. Archiving is refused while a tenancy is still active so
+     * billing and meter readings cannot silently point at a retired room. History is never
+     * removed: archived rooms stay visible with their old bills and tenancies.
+     */
+    suspend fun setRoomActive(roomId: UUID, active: Boolean) {
+        provider.database.withTransaction {
+            val existing = dao.getById(roomId) ?: throw NotFoundException("Room not found")
+            if (existing.isActive == active) return@withTransaction
+            if (!active && tenancyDao.getActiveForRoom(roomId) != null) {
+                throw ConflictException(
+                    "End the active tenancy for room ${existing.roomNumber} before archiving it",
+                )
+            }
+            dao.update(existing.copy(isActive = active))
         }
     }
 }

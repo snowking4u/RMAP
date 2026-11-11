@@ -30,8 +30,28 @@ interface MeterReadingDao {
     )
     suspend fun getLatestForTenancy(tenancyId: UUID): MeterReadingEntity?
 
+    /**
+     * Latest reading for every room. Used to show the automatic previous reading in the
+     * billing form so the owner only has to enter the current value.
+     */
+    @Query(
+        """
+        SELECT * FROM meter_readings r
+        WHERE r.id = (
+            SELECT r2.id FROM meter_readings r2
+            WHERE r2.room_id = r.room_id
+            ORDER BY r2.reading_date DESC, r2.created_at DESC
+            LIMIT 1
+        )
+        """,
+    )
+    fun observeLatestPerRoom(): Flow<List<MeterReadingEntity>>
+
     @Query("SELECT * FROM meter_readings WHERE id = :id")
     suspend fun getById(id: UUID): MeterReadingEntity?
+
+    @Query("SELECT * FROM meter_readings WHERE bill_id = :billId LIMIT 1")
+    suspend fun getForBill(billId: UUID): MeterReadingEntity?
 
     @Query("SELECT * FROM meter_readings ORDER BY reading_date DESC, created_at DESC")
     suspend fun getAll(): List<MeterReadingEntity>

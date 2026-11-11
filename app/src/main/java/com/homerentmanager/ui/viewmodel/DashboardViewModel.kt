@@ -22,7 +22,7 @@ data class DashboardUiState(
     val outstandingTotalPaise: Long = 0,
     val carryForwardPaise: Long = 0,
     val occupiedRooms: Int = 0,
-    val totalRooms: Int = 7,
+    val totalRooms: Int = 0,
     val activeTenants: Int = 0,
     val recentPayments: List<PaymentWithDetails> = emptyList(),
     val recentBills: List<BillWithDetails> = emptyList(),
@@ -63,8 +63,8 @@ class DashboardViewModel(container: AppContainer) : HrmViewModel() {
             carryForwardPaise = bills.filter { it.bill.billingMonth < month }.sumOf {
                 (it.bill.totalPaise - it.bill.paidPaise).coerceAtLeast(0)
             },
-            occupiedRooms = rooms.count { it.activeTenancyId != null },
-            totalRooms = rooms.size,
+            occupiedRooms = rooms.count { it.room.isActive && it.activeTenancyId != null },
+            totalRooms = rooms.count { it.room.isActive },
             activeTenants = activeTenants,
             recentPayments = payments.take(5),
             recentBills = monthBills.sortedByDescending { it.bill.createdAt }.take(5),

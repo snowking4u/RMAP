@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.util.UUID
@@ -31,6 +32,7 @@ data class ElectricityUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class ElectricityViewModel(private val container: AppContainer) : HrmViewModel() {
     private val rooms = container.roomRepository.observeOccupancy()
+        .map { occupancy -> occupancy.filter { it.room.isActive } }
     private val selected = MutableStateFlow<UUID?>(null)
     private val savedAt = MutableStateFlow(0L)
 

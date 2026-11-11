@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 data class SettingsUiState(
     val loading: Boolean = true,
     val settings: SettingsEntity = SettingsEntity(),
-    val roomCount: Int = 7,
+    val roomCount: Int = 0,
     val databaseVersion: Int = AppDatabase.VERSION,
     val appVersion: String = BuildConfig.VERSION_NAME,
 )

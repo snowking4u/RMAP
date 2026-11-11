@@ -8,8 +8,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * One of the seven managed rental rooms. Rooms are never deleted so historical bills and
- * tenancies always keep a valid foreign-key target.
+ * One managed rental room. Rooms are never deleted so historical bills and
+ * tenancies always keep a valid foreign-key target. New rooms can be added at any time and
+ * existing rooms can be archived (isActive = false) instead of removed.
  */
 @Entity(
     tableName = "rooms",

@@ -21,10 +21,11 @@ The suite runs on the JVM with Robolectric for database, migration, and backup i
 | --- | --- |
 | `BillingCalculatorTest` | Units calculation and rounding, invalid descending readings, paise electricity amount with `HALF_UP`, bill totals, discount limits, paid/partial/unpaid status, overpayment rejection. |
 | `FormattingAndValidationTest` | Money parsing/formatting with Indian grouping, month helpers, mobile validation/normalization, CSV escaping (commas, quotes, newlines, spreadsheet formula injection), enum labels, amount-in-words for lakhs and paise. |
-| `BackupFormatTest` | AES-GCM round trip, wrong-password rejection, short-password rejection, tampered-ciphertext authentication failure, envelope/manifest JSON round trip, foreign/truncated file rejection. |
-| `BackupManagerTest` | Full manual backup creation, encrypted-at-rest check, wrong password rejection, tamper rejection, validation, transactional restore, internal safety copy, live-data replacement. |
-| `DatabaseBehaviorTest` | Exactly seven seeded rooms and settings row; tenant replacement preserves old tenancy/bill/payments; duplicate monthly bill rejected without side effects; partial and full payments update status and never exceed the total. |
+| `BackupFormatTest` | AES-256-GCM payload round trip, wrong-password rejection, tampered ciphertext authentication failure, short-password rejection, `HRMBK1` envelope/header round trip, and foreign/truncated file rejection. |
+| `BackupManagerTest` | Encrypted manual backup creation (ciphertext contains no plain SQLite), wrong-password validation failure, tamper rejection, validation counts, transactional restore, internal safety copy, live-data replacement, and restore of more than seven rooms. |
+| `DatabaseBehaviorTest` | Seven starter rooms and settings row; adding/archiving/restoring rooms; duplicate room-number rejection; archived-room assignment rejection; automatic previous-reading reuse; lower-reading rollback; per-room latest-reading isolation; tenant replacement preserves old tenancy/bill/payments; duplicate monthly bill rejected without side effects; partial and full payments update status and never exceed the total. |
 | `MigrationTest` | Schema 1 → 2 adds a nullable `bills.notes` column and preserves existing bill rows. |
+| `ReceiptBuilderTest` | Receipt includes rent, electricity reading/units/rate/amount, additional charges, discount, original total, historical previous/current/cumulative payments, and outstanding; stored rates survive later rate changes; missing readings fall back safely. |
 | `BackupConfigurationTest` | Manifest requests Auto Backup; `backup_rules.xml` and `data_extraction_rules.xml` include the database and exclude cache/temp directories. |
 
 ### Database tests
@@ -35,12 +36,12 @@ Robolectric opens a real SQLite database per test, runs the seeding callback, an
 
 `BackupManagerTest` uses `file://` URIs supported by Robolectric's content resolver. On a device, the same code path runs through SAF `content://` URIs. The test verifies:
 
-1. backup file is created and does not contain plaintext `SQLite`;
-2. a wrong password fails;
-3. a tampered byte fails authentication;
-4. validation reports seven rooms;
+1. the backup file is created, is encrypted, and does not expose a plain SQLite header;
+2. a wrong password fails validation;
+3. a tampered backup file fails authentication before restore;
+4. validation reports the correct room/tenant counts, including more than seven rooms;
 5. a tenant added after backup is removed by restore;
-6. seven rooms remain and an internal pre-restore safety copy exists.
+6. all rooms are restored and an internal pre-restore safety copy exists.
 
 The Android Auto Backup transport itself cannot be exercised from unit tests. Its configuration is tested; scheduling/upload/restore must be checked manually with `bmgr` as described in [BACKUP.md](BACKUP.md).
 
@@ -51,9 +52,10 @@ Use a debug build on a real device when possible.
 ### First run and seeding
 
 - [ ] Clear app data or install fresh.
-- [ ] App opens with seven rooms numbered 1–7 and a settings row.
+- [ ] App opens with seven starter rooms numbered 1–7 and a settings row.
 - [ ] Room numbers, rent, floor, and electricity rate are editable.
-- [ ] No add/delete room action exists.
+- [ ] **Add Room** creates a new room with a unique number; a duplicate number is rejected.
+- [ ] A room can be archived and restored; archived rooms are hidden from new tenant assignment.
 
 ### Tenant replacement and history
 
@@ -83,7 +85,7 @@ Use a debug build on a real device when possible.
 - [ ] Remaining payment sets status `PAID`.
 - [ ] Overpayment and zero/negative payment are rejected.
 - [ ] Payment appears in the bill, payments list, dashboard, and reports.
-- [ ] Receipt PDF shows the correct receipt number, amount, method, and balance.
+- [ ] Receipt PDF shows the receipt number, property, room, tenant, month, rent, previous/current reading, units, rate, electricity total, additional charges, discount, original total, previous payments, this payment, cumulative paid, outstanding, date, paid-by, method, and reference.
 
 ### PDF
 
@@ -96,9 +98,11 @@ Use a debug build on a real device when possible.
 ### Backup and restore
 
 - [ ] Create a manual backup to Google Drive or a local folder.
+- [ ] Confirm the password dialog requires at least 8 characters and confirmation.
 - [ ] Confirm the file is present and the app records time/name/size.
-- [ ] Try restoring with a wrong password; validation fails and data is unchanged.
-- [ ] Modify the backup file; validation fails.
+- [ ] Confirm the `.hrmbackup` file is not a readable ZIP and contains no plain SQLite text.
+- [ ] Try to validate with a wrong password; it must fail.
+- [ ] Modify the backup bytes; validation fails with an authentication error.
 - [ ] Validate with the correct password; summary shows room/tenant/bill counts.
 - [ ] Add a test tenant, restore the earlier backup, confirm the test tenant is gone and counts match.
 - [ ] Confirm an internal safety copy exists under app-private `files/restore_safety/` (debug build via `run-as`).
@@ -115,7 +119,7 @@ Use a debug build on a real device when possible.
 
 ### Uninstall/reinstall recovery
 
-- [ ] Create a manual encrypted backup first.
+- [ ] Create a manual backup first.
 - [ ] Uninstall, reinstall, and check whether Auto Backup restored data (same account/device).
 - [ ] If not restored, use the manual backup to recover.
 - [ ] Confirm the app never claims a system restore is guaranteed.

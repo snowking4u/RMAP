@@ -1,6 +1,7 @@
 package com.homerentmanager.data.dao
 
 import androidx.room.Dao
+import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import com.homerentmanager.data.entity.RoomEntity
@@ -55,6 +56,9 @@ interface RoomDao {
 
     @Query("SELECT * FROM rooms WHERE room_number = :roomNumber LIMIT 1")
     suspend fun getByNumber(roomNumber: String): RoomEntity?
+
+    @Insert
+    suspend fun insert(room: RoomEntity)
 
     @Update
     suspend fun update(room: RoomEntity)

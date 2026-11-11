@@ -21,11 +21,14 @@ import androidx.core.content.FileProvider
 import com.homerentmanager.BuildConfig
 import com.homerentmanager.data.entity.BillEntity
 import com.homerentmanager.data.entity.BillStatus
+import com.homerentmanager.data.entity.MeterReadingEntity
 import com.homerentmanager.data.entity.PaymentEntity
 import com.homerentmanager.data.entity.PaymentMethod
 import com.homerentmanager.data.entity.SettingsEntity
 import com.homerentmanager.data.entity.TenantEntity
 import com.homerentmanager.data.model.BillWithDetails
+import com.homerentmanager.domain.ReceiptBuilder
+import com.homerentmanager.domain.ReceiptModel
 import com.homerentmanager.util.NumberToWords
 import com.homerentmanager.util.formatDisplay
 import com.homerentmanager.util.formatUnits
@@ -90,12 +93,24 @@ class PdfService(private val context: Context) {
         roomNumber: String,
         payment: PaymentEntity,
         billPayments: List<PaymentEntity>,
+        reading: MeterReadingEntity?,
     ): File = withContext(Dispatchers.IO) {
         val directory = File(context.cacheDir, "pdfs").apply { mkdirs() }
         val file = File(directory, receiptFileName(payment))
         FileOutputStream(file).use { output ->
             val document = PdfDocument()
-            drawReceipt(document, settings, bill, tenant, roomNumber, payment, billPayments)
+            drawReceipt(
+                document = document,
+                settings = settings,
+                receipt = ReceiptBuilder.build(
+                    bill = bill,
+                    tenant = tenant,
+                    roomNumber = roomNumber,
+                    payment = payment,
+                    reading = reading,
+                    billPayments = billPayments,
+                ),
+            )
             document.writeTo(output)
             document.close()
         }
@@ -358,12 +373,11 @@ class PdfService(private val context: Context) {
     private fun drawReceipt(
         document: PdfDocument,
         settings: SettingsEntity,
-        bill: BillEntity,
-        tenant: TenantEntity,
-        roomNumber: String,
-        payment: PaymentEntity,
-        billPayments: List<PaymentEntity>,
+        receipt: ReceiptModel,
     ) {
+        val bill = receipt.bill
+        val payment = receipt.payment
+        val tenant = receipt.tenant
         val writer = DocWriter(document, "Receipt ${payment.receiptNumber}")
         writer.beginPage()
         drawBrandHeader(writer, settings, title = "PAYMENT RECEIPT", subtitle = payment.receiptNumber)
@@ -376,11 +390,12 @@ class PdfService(private val context: Context) {
             add(tenant.name)
             if (tenant.mobile.isNotBlank()) add("Mobile: ${tenant.mobile}")
             if (tenant.address.isNotBlank()) add(tenant.address)
-            add("Room $roomNumber")
+            add("Room ${receipt.roomNumber}")
         }
         writer.drawTextBlock(tenantLines, MARGIN, y, 250f, 9.5f, 13f, INK)
         var metaY = y
         listOf(
+            "Paid by" to tenant.name,
             "Payment date" to payment.paidAt.formatDisplay(),
             "Method" to payment.method.label(),
             "Bill number" to bill.billNumber,
@@ -392,13 +407,16 @@ class PdfService(private val context: Context) {
             metaY += 14f
         }
 
-        y = 245f
+        y = maxOf(y + tenantLines.size * 13f + 20f, metaY + 12f)
+        writer.currentY = y
+        writer.ensureSpace(120f)
+        y = writer.currentY
         val box = RectF(MARGIN, y, PAGE_WIDTH - MARGIN, y + 78f)
         val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TEAL_LIGHT }
         writer.canvas.drawRoundRect(box, 10f, 10f, boxPaint)
         writer.drawText("AMOUNT RECEIVED", MARGIN + 18f, y + 24f, 9f, TEAL, bold = true)
         writer.drawText(
-            payment.amountPaise.toPdfRupees(),
+            receipt.currentPaymentPaise.toPdfRupees(),
             MARGIN + 18f,
             y + 56f,
             25f,
@@ -406,7 +424,7 @@ class PdfService(private val context: Context) {
             bold = true,
         )
         writer.drawText(
-            payment.amountPaise.allocationLabel(bill),
+            if (receipt.outstandingPaise == 0L) "Bill fully paid" else "Allocated to this invoice",
             555f,
             y + 56f,
             9f,
@@ -415,7 +433,7 @@ class PdfService(private val context: Context) {
         )
         y += 96f
         val wordsBottom = writer.drawWrapped(
-            "Amount in words: ${NumberToWords.rupees(payment.amountPaise)}",
+            "Amount in words: ${NumberToWords.rupees(receipt.currentPaymentPaise)}",
             MARGIN,
             y,
             555f,
@@ -423,28 +441,105 @@ class PdfService(private val context: Context) {
             INK,
             12f,
         )
-        y = wordsBottom + 20f
+        y = wordsBottom + 18f
 
-        writer.drawLabel("BILL SUMMARY", MARGIN, y)
+        writer.currentY = y
+        writer.ensureSpace(120f)
+        y = writer.currentY
+        writer.drawLabel("BILL BREAKDOWN", MARGIN, y)
         y += 16f
-        writer.drawSummaryRow("Invoice total", bill.totalPaise.toPdfRupees(), y)
-        y += 17f
-        writer.drawSummaryRow("Total paid to date", bill.paidPaise.toPdfRupees(), y)
-        y += 17f
+        writer.drawSummaryRow("Rent — ${monthLabel(bill.billingMonth)}", receipt.rentPaise.toPdfRupees(), y)
+        y += 16f
+        if (receipt.hasElectricity) {
+            writer.drawSummaryRow(
+                "Previous reading",
+                receipt.previousReading?.formatUnits() ?: "Not recorded",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Current reading",
+                receipt.currentReading?.formatUnits() ?: "Not recorded",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Units consumed",
+                "${receipt.electricityUnits.formatUnits()} units",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Electricity rate",
+                "Rs. ${receipt.electricityRate.formatRateNumber()}/unit",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Electricity charge",
+                receipt.electricityAmountPaise.toPdfRupees(),
+                y,
+            )
+            y += 16f
+        }
+        if (receipt.additionalChargesPaise != 0L) {
+            writer.drawSummaryRow(
+                "Additional charges",
+                receipt.additionalChargesPaise.toPdfRupees(),
+                y,
+            )
+            y += 16f
+        }
+        if (receipt.discountPaise != 0L) {
+            writer.drawSummaryRow(
+                "Discount",
+                "- ${receipt.discountPaise.toPdfRupees()}",
+                y,
+            )
+            y += 16f
+        }
         writer.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, LINE)
-        y += 18f
-        writer.drawText("Balance after this payment", MARGIN, y, 10.5f, INK, bold = true)
+        y += 17f
+        writer.drawText("Original bill total", MARGIN, y, 10.5f, INK, bold = true)
         writer.drawText(
-            (bill.totalPaise - bill.paidPaise).coerceAtLeast(0).toPdfRupees(),
+            receipt.billTotalPaise.toPdfRupees(),
             555f,
             y,
             12f,
-            if (bill.status == BillStatus.PAID) GREEN else RED,
+            INK,
+            bold = true,
+            align = Paint.Align.RIGHT,
+        )
+        y += 28f
+
+        writer.currentY = y
+        writer.ensureSpace(110f)
+        y = writer.currentY
+        writer.drawLabel("PAYMENT SUMMARY", MARGIN, y)
+        y += 16f
+        writer.drawSummaryRow("Previous payments", receipt.previousPaidPaise.toPdfRupees(), y)
+        y += 17f
+        writer.drawSummaryRow("This payment", receipt.currentPaymentPaise.toPdfRupees(), y)
+        y += 17f
+        writer.drawSummaryRow("Total paid after this payment", receipt.cumulativePaidPaise.toPdfRupees(), y)
+        y += 17f
+        writer.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, LINE)
+        y += 18f
+        writer.drawText("Outstanding after this payment", MARGIN, y, 10.5f, INK, bold = true)
+        writer.drawText(
+            receipt.outstandingPaise.toPdfRupees(),
+            555f,
+            y,
+            12f,
+            if (receipt.outstandingPaise == 0L) GREEN else RED,
             bold = true,
             align = Paint.Align.RIGHT,
         )
         y += 32f
 
+        writer.currentY = y
+        writer.ensureSpace(80f)
+        y = writer.currentY
         writer.drawLabel("PAYMENTS ON THIS BILL", MARGIN, y)
         y += 16f
         writer.drawTableHeader(
@@ -458,7 +553,8 @@ class PdfService(private val context: Context) {
             aligns = listOf(Paint.Align.LEFT, Paint.Align.LEFT, Paint.Align.LEFT, Paint.Align.RIGHT),
         )
         y += 19f
-        billPayments.forEach { item ->
+        writer.currentY = y
+        receipt.paymentsOnBill.forEach { item ->
             writer.ensureSpace(22f)
             writer.drawTableRow(
                 writer.currentY,
@@ -741,9 +837,4 @@ class PdfService(private val context: Context) {
             .setScale(2, java.math.RoundingMode.HALF_UP)
             .stripTrailingZeros()
             .toPlainString()
-
-    private fun Long.allocationLabel(bill: BillEntity): String = when {
-        bill.paidPaise >= bill.totalPaise -> "Bill fully paid"
-        else -> "Allocated to invoice"
-    }
 }

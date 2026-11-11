@@ -105,6 +105,10 @@ class BillingRepository(private val provider: DatabaseProvider) {
     suspend fun getPaymentWithDetails(paymentId: UUID): PaymentWithDetails? =
         paymentDao.getWithDetails(paymentId)
 
+    /** Returns the historical meter reading linked to a bill, if the bill included one. */
+    suspend fun getReadingForBill(billId: UUID): MeterReadingEntity? =
+        readingDao.getForBill(billId)
+
     /**
      * Creates one bill (and, when readings are supplied, the linked meter reading) in one
      * transaction. The unique (room, month) index plus this check make duplicates impossible.

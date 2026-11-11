@@ -25,6 +25,7 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.OutputStream
 import java.time.Instant
 import java.time.LocalDate
@@ -228,11 +229,10 @@ class BackupManager(
 
     suspend fun validateBackup(source: Uri, password: CharArray): ValidatedBackup =
         withContext(Dispatchers.IO) {
-            val bytes = context.contentResolver.openInputStream(source)?.use { it.readBytes() }
-                ?: error("Could not open the selected backup file")
-            if (bytes.size > BackupFormat.MAX_CIPHER_BYTES + BackupFormat.MAX_HEADER_BYTES) {
-                error("Backup file exceeds the supported size")
-            }
+            val limit = (BackupFormat.MAX_CIPHER_BYTES + BackupFormat.MAX_HEADER_BYTES).toLong()
+            val bytes = context.contentResolver.openInputStream(source)?.use {
+                it.readAtMost(limit)
+            } ?: error("Could not open the selected backup file")
             val envelope = BackupFormat.envelopeFromBytes(bytes)
             val header = envelope.header
             if (header.formatVersion != BackupFormat.FORMAT_VERSION) {
@@ -336,10 +336,6 @@ class BackupManager(
                 ) {
                     error("Backup row counts do not match its manifest")
                 }
-                if (actualStats.rooms != 7) {
-                    error("Backup must contain exactly seven rooms (found ${actualStats.rooms})")
-                }
-
                 val warnings = buildList {
                     if (header.createdAtMillis != manifest.createdAtMillis) {
                         add("Backup timestamps in the header and manifest differ.")
@@ -611,6 +607,20 @@ class BackupManager(
         output.putNextEntry(entry)
         output.write(bytes)
         output.closeEntry()
+    }
+
+    private fun InputStream.readAtMost(limit: Long): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val read = read(buffer)
+            if (read < 0) break
+            total += read
+            if (total > limit) error("Backup file exceeds the supported size")
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
     }
 
     private fun ZipInputStream.readLimited(limit: Long): ByteArray {

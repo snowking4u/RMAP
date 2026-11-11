@@ -168,6 +168,11 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f),
                         onClick = { onNavigate(Routes.ELECTRICITY) },
                     )
+                }
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuickAction(
                         label = "Reports",
                         icon = Icons.Outlined.Schedule,

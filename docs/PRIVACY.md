@@ -15,7 +15,7 @@ Home Rent Manager is offline-first. Rental data is stored in a local SQLite data
 
 Only when the user explicitly acts:
 
-- **Manual backup** – the encrypted `.hrmbackup` file is written to the URI chosen in the system file picker. If the user chooses Google Drive, Google's own app/account handles the upload under Google's terms. The file contents are encrypted with the user's password; the file name and size are visible to the storage provider.
+- **Manual backup** – the password-encrypted `.hrmbackup` file is written to the URI chosen in the system file picker. If the user chooses Google Drive, Google's own app/account handles the upload under Google's terms. The file contents are encrypted with AES-256-GCM under a password the owner chooses; the file name and size are still visible to the storage provider. The app never stores or transmits the password.
 - **PDF/CSV share or save** – the selected document is passed to the destination app or saved to the chosen folder. These files are **not encrypted**.
 - **Android Auto Backup** – if enabled on the device, Android may upload the app database to the user's Google account. This is performed and encrypted in transit/at rest by Android/Google, subject to the 25 MB quota. The app cannot inspect, trigger, or query this process.
 - **Print** – the PDF is handed to the Android print framework and the chosen print service.
@@ -34,18 +34,18 @@ WorkManager merges a few local scheduling permissions into the manifest: `WAKE_L
 
 ## Security measures
 
-- Manual backups use AES-256-GCM with PBKDF2-HMAC-SHA256 (210,000 iterations, random salt and IV).
-- The password is never stored; only a derived key exists briefly in memory.
-- Backup files are authenticated; tampering or a wrong password fails before restore.
-- Restore validates integrity, checksum, manifest counts, and schema, then imports in a transaction.
+- Manual backups are password-encrypted `HRMBK1` files. The inner ZIP (SQLite snapshot plus manifest) is encrypted with AES-256-GCM using a key derived from the owner's password with PBKDF2-HMAC-SHA256 (210,000 iterations, random 16-byte salt, random 12-byte IV).
+- The password is never stored, logged, or sent anywhere. There is no recovery password; a lost password means the backup cannot be opened.
+- Integrity is authenticated by AES-GCM; a wrong password, tampering, or corruption fails before restore. The manifest also records a SHA-256 checksum and row counts.
+- Restore validates the envelope, password, integrity, checksum, manifest counts, and schema, then imports in a transaction.
 - Room foreign keys and unique indexes protect data consistency.
 - Android Auto Backup is scoped to the database and settings; caches and temporary files are excluded.
 
 ## User responsibilities
 
-- Keep the backup password safe; it cannot be recovered.
+- Remember the backup password; the app cannot recover it.
 - Store at least one backup off the device.
-- Treat CSV/PDF exports as sensitive financial documents.
+- Treat CSV/PDF exports as sensitive financial documents; they are not encrypted.
 - Protect the unlocked device with a screen lock and full-disk encryption (Android default on modern versions).
 - Review Google account backup settings if Auto Backup is not desired.
 

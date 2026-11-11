@@ -177,9 +177,10 @@ fun ElectricityScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                             OutlinedTextField(
                                 value = previous,
-                                onValueChange = { previous = it },
-                                label = { Text("Previous") },
+                                onValueChange = {},
+                                label = { Text("Previous (auto)") },
                                 singleLine = true,
+                                readOnly = true,
                                 modifier = Modifier.weight(1f),
                             )
                             OutlinedTextField(

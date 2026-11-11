@@ -79,6 +79,9 @@ class TenantRepository(private val provider: DatabaseProvider) {
             if (tenancy != null) {
                 val room = roomDao.getById(tenancy.roomId)
                     ?: throw NotFoundException("Room not found")
+                if (!room.isActive) {
+                    throw ConflictException("Room ${room.roomNumber} is archived. Restore it first.")
+                }
                 if (tenancyDao.getActiveForRoom(tenancy.roomId) != null) {
                     throw ConflictException("Room ${room.roomNumber} is already occupied")
                 }
@@ -126,6 +129,9 @@ class TenantRepository(private val provider: DatabaseProvider) {
                 ?: throw NotFoundException("Tenant not found")
             val room = roomDao.getById(input.roomId)
                 ?: throw NotFoundException("Room not found")
+            if (!room.isActive) {
+                throw ConflictException("Room ${room.roomNumber} is archived. Restore it first.")
+            }
             if (tenancyDao.getActiveForTenant(tenantId) != null) {
                 throw ConflictException(
                     "This tenant already has an active tenancy. End it before starting another.",

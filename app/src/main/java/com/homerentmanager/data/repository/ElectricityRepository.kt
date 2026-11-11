@@ -22,6 +22,8 @@ class ElectricityRepository(private val provider: DatabaseProvider) {
 
     fun observeAll(): Flow<List<MeterReadingEntity>> = dao.observeAll()
 
+    fun observeLatestPerRoom(): Flow<List<MeterReadingEntity>> = dao.observeLatestPerRoom()
+
     suspend fun latestForRoom(roomId: UUID): MeterReadingEntity? = dao.getLatestForRoom(roomId)
 
     suspend fun latestForTenancy(tenancyId: UUID): MeterReadingEntity? =

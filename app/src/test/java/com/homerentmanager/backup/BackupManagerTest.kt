@@ -30,6 +30,7 @@ class BackupManagerTest {
     private lateinit var provider: DatabaseProvider
     private lateinit var settings: SettingsRepository
     private lateinit var tenants: TenantRepository
+    private lateinit var rooms: RoomRepository
     private lateinit var manager: BackupManager
     private lateinit var backupFile: File
 
@@ -40,12 +41,13 @@ class BackupManagerTest {
         provider = DatabaseProvider(context)
         settings = SettingsRepository(provider)
         tenants = TenantRepository(provider)
+        rooms = RoomRepository(provider)
         manager = BackupManager(
             context = context,
             provider = provider,
             settingsRepository = settings,
             billingRepository = BillingRepository(provider),
-            roomRepository = RoomRepository(provider),
+            roomRepository = rooms,
             tenancyRepository = TenancyRepository(provider),
         )
         backupFile = File(context.cacheDir, "test-backup.hrmbackup")
@@ -61,6 +63,8 @@ class BackupManagerTest {
 
     @Test
     fun `manual backup validates and restores a complete snapshot`() = runBlocking {
+        // More than the seven starter rooms must be accepted and restored.
+        rooms.addRoom("8", "Second floor", 900_000, 9.0, "")
         val uri = Uri.fromFile(backupFile)
         val outcome = manager.createBackup(uri, "correct-password".toCharArray(), "test")
         assertTrue(backupFile.exists())
@@ -74,7 +78,7 @@ class BackupManagerTest {
         }
 
         val validated = manager.validateBackup(uri, "correct-password".toCharArray())
-        assertEquals(7, validated.stats.rooms)
+        assertEquals(8, validated.stats.rooms)
         assertEquals(0, validated.stats.tenants)
 
         tenants.createTenant(
@@ -93,7 +97,7 @@ class BackupManagerTest {
 
         val result = manager.restoreBackup(validated)
         assertEquals(0, tenants.observeAll().first().size)
-        assertEquals(7, provider.database.roomDao().count())
+        assertEquals(8, provider.database.roomDao().count())
         assertTrue(File(context.filesDir, "restore_safety/${result.safetyCopyName}").exists())
     }
 

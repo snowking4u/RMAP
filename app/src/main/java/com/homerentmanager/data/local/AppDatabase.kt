@@ -67,8 +67,9 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 /**
- * Seeds exactly seven rooms and one settings row on first creation. Uses INSERT OR IGNORE
- * so a partially seeded database can never grow beyond seven default rooms.
+ * Seeds seven starter rooms and one settings row on first creation. Uses INSERT OR IGNORE
+ * so a partially seeded database never duplicates defaults. Seven is only a starting point:
+ * owners can add more rooms or archive unused ones at any time.
  */
 class SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {

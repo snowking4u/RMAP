@@ -5,6 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,7 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -74,6 +81,29 @@ object Routes {
     fun bill(id: UUID) = "bill/$id"
 }
 
+/**
+ * Ignores duplicate taps that would push the same screen twice. Rapid repeated taps used to
+ * stack duplicate destinations, which made the back stack appear stuck on a frozen screen.
+ */
+private fun NavHostController.navigateSafely(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) { launchSingleTop = true }
+}
+
+/**
+ * Bottom navigation uses state saving so each tab keeps its scroll position. Tapping the tab
+ * that is already selected is a no-op, which prevents repeated taps from re-adding entries
+ * and making the back stack look frozen.
+ */
+private fun NavHostController.navigateTopLevel(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 private data class BottomDestination(
     val route: String,
     val label: String,
@@ -121,8 +151,12 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
+    var openBackupInitiallyConsumed by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openBackupInitially) {
-        if (openBackupInitially) navController.navigate(Routes.BACKUP)
+        if (openBackupInitially && !openBackupInitiallyConsumed) {
+            openBackupInitiallyConsumed = true
+            navController.navigateSafely(Routes.BACKUP)
+        }
     }
 
     Scaffold(
@@ -134,13 +168,7 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
                         NavigationBarItem(
                             selected = route == destination.route,
                             onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateTopLevel(destination.route)
                             },
                             icon = { Icon(destination.icon, contentDescription = destination.label) },
                             label = { Text(destination.label) },
@@ -154,18 +182,46 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
             navController = navController,
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(padding),
+            enterTransition = {
+                fadeIn(tween(180)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Start,
+                    tween(220),
+                    initialOffset = { it / 12 },
+                )
+            },
+            exitTransition = {
+                fadeOut(tween(150)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Start,
+                    tween(220),
+                    targetOffset = { it / 12 },
+                )
+            },
+            popEnterTransition = {
+                fadeIn(tween(180)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.End,
+                    tween(220),
+                    initialOffset = { it / 12 },
+                )
+            },
+            popExitTransition = {
+                fadeOut(tween(150)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.End,
+                    tween(220),
+                    targetOffset = { it / 12 },
+                )
+            },
         ) {
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
                     container = container,
-                    onNavigate = { routeValue -> navController.navigate(routeValue) },
-                    onOpenBill = { navController.navigate(Routes.bill(it)) },
+                    onNavigate = { routeValue -> navController.navigateSafely(routeValue) },
+                    onOpenBill = { navController.navigateSafely(Routes.bill(it)) },
                 )
             }
             composable(Routes.ROOMS) {
                 RoomsScreen(
                     container = container,
-                    onOpenRoom = { navController.navigate(Routes.room(it)) },
+                    onOpenRoom = { navController.navigateSafely(Routes.room(it)) },
                 )
             }
             composable(Routes.ROOM_DETAIL) { entry ->
@@ -174,15 +230,15 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
                     container = container,
                     roomId = id,
                     onBack = { navController.popBackStack() },
-                    onOpenBill = { navController.navigate(Routes.bill(it)) },
-                    onOpenTenant = { navController.navigate(Routes.tenant(it)) },
-                    onAddTenant = { navController.navigate(Routes.TENANTS) },
+                    onOpenBill = { navController.navigateSafely(Routes.bill(it)) },
+                    onOpenTenant = { navController.navigateSafely(Routes.tenant(it)) },
+                    onAddTenant = { navController.navigateSafely(Routes.TENANTS) },
                 )
             }
             composable(Routes.TENANTS) {
                 TenantsScreen(
                     container = container,
-                    onOpenTenant = { navController.navigate(Routes.tenant(it)) },
+                    onOpenTenant = { navController.navigateSafely(Routes.tenant(it)) },
                 )
             }
             composable(Routes.TENANT_DETAIL) { entry ->
@@ -191,16 +247,16 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
                     container = container,
                     tenantId = id,
                     onBack = { navController.popBackStack() },
-                    onOpenBill = { navController.navigate(Routes.bill(it)) },
-                    onOpenRoom = { navController.navigate(Routes.room(it)) },
+                    onOpenBill = { navController.navigateSafely(Routes.bill(it)) },
+                    onOpenRoom = { navController.navigateSafely(Routes.room(it)) },
                 )
             }
             composable(Routes.HISTORY) {
                 TenancyHistoryScreen(
                     container = container,
                     onBack = { navController.popBackStack() },
-                    onOpenTenant = { navController.navigate(Routes.tenant(it)) },
-                    onOpenRoom = { navController.navigate(Routes.room(it)) },
+                    onOpenTenant = { navController.navigateSafely(Routes.tenant(it)) },
+                    onOpenRoom = { navController.navigateSafely(Routes.room(it)) },
                 )
             }
             composable(Routes.ELECTRICITY) {
@@ -212,7 +268,7 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
             composable(Routes.BILLING) {
                 BillingScreen(
                     container = container,
-                    onOpenBill = { navController.navigate(Routes.bill(it)) },
+                    onOpenBill = { navController.navigateSafely(Routes.bill(it)) },
                 )
             }
             composable(Routes.BILL_DETAIL) { entry ->
@@ -221,15 +277,15 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
                     container = container,
                     billId = id,
                     onBack = { navController.popBackStack() },
-                    onOpenTenant = { navController.navigate(Routes.tenant(it)) },
-                    onOpenRoom = { navController.navigate(Routes.room(it)) },
+                    onOpenTenant = { navController.navigateSafely(Routes.tenant(it)) },
+                    onOpenRoom = { navController.navigateSafely(Routes.room(it)) },
                 )
             }
             composable(Routes.PAYMENTS) {
                 PaymentsScreen(
                     container = container,
                     onBack = { navController.popBackStack() },
-                    onOpenBill = { navController.navigate(Routes.bill(it)) },
+                    onOpenBill = { navController.navigateSafely(Routes.bill(it)) },
                 )
             }
             composable(Routes.REPORTS) {
@@ -252,7 +308,7 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
             }
             composable(Routes.MORE) {
                 MoreScreen(
-                    onNavigate = { navController.navigate(it) },
+                    onNavigate = { navController.navigateSafely(it) },
                 )
             }
         }

@@ -15,13 +15,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MeetingRoom
 import androidx.compose.material.icons.outlined.PersonOff
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,18 +66,32 @@ fun RoomsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<RoomOccupancy?>(null) }
+    var adding by remember { mutableStateOf(false) }
+
+    val activeRooms = state.rooms.filter { it.room.isActive }
+    val archivedRooms = state.rooms.size - activeRooms.size
+    val occupied = activeRooms.count { it.activeTenancyId != null }
 
     HrmScaffold(
         title = "Rooms",
-        subtitle = "Exactly seven rooms are managed by this app",
+        subtitle = buildString {
+            append("${activeRooms.size} active room(s)")
+            if (archivedRooms > 0) append(" · $archivedRooms archived")
+        },
         message = message,
         onMessageShown = viewModel::messageShown,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { adding = true },
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                text = { Text("Add Room") },
+            )
+        },
     ) { padding ->
         if (state.loading) {
             LoadingBox(Modifier.padding(padding))
             return@HrmScaffold
         }
-        val occupied = state.rooms.count { it.activeTenancyId != null }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
@@ -90,7 +107,7 @@ fun RoomsScreen(
                     )
                     StatCard(
                         label = "Vacant",
-                        value = (state.rooms.size - occupied).toString(),
+                        value = (activeRooms.size - occupied).toString(),
                         supporting = "Ready to rent",
                         modifier = Modifier.weight(1f),
                     )
@@ -102,8 +119,13 @@ fun RoomsScreen(
                     occupancy = occupancy,
                     onOpen = { onOpenRoom(occupancy.room.id) },
                     onEdit = { editing = occupancy },
+                    onToggleActive = {
+                        viewModel.setRoomActive(occupancy.room.id, !occupancy.room.isActive)
+                    },
                 )
             }
+
+            item { Spacer(Modifier.height(72.dp)) }
         }
     }
 
@@ -117,6 +139,16 @@ fun RoomsScreen(
             },
         )
     }
+
+    if (adding) {
+        AddRoomDialog(
+            onDismiss = { adding = false },
+            onSave = { number, floor, rentPaise, rate, notes ->
+                viewModel.addRoom(number, floor, rentPaise, rate, notes)
+                adding = false
+            },
+        )
+    }
 }
 
 @Composable
@@ -124,8 +156,10 @@ private fun RoomCard(
     occupancy: RoomOccupancy,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
+    onToggleActive: () -> Unit,
 ) {
     val room = occupancy.room
+    val active = room.isActive
     val occupied = occupancy.activeTenancyId != null
     Card(
         onClick = onOpen,
@@ -138,7 +172,7 @@ private fun RoomCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = if (occupied) {
+                        containerColor = if (occupied && active) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
@@ -169,13 +203,17 @@ private fun RoomCard(
                     )
                 }
                 Tag(
-                    text = if (occupied) "Occupied" else "Vacant",
-                    color = if (occupied) {
+                    text = when {
+                        !active -> "Archived"
+                        occupied -> "Occupied"
+                        else -> "Vacant"
+                    },
+                    color = if (occupied && active) {
                         MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    container = if (occupied) {
+                    container = if (occupied && active) {
                         MaterialTheme.colorScheme.primaryContainer
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant
@@ -184,34 +222,48 @@ private fun RoomCard(
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Outlined.Edit, contentDescription = "Edit room")
                 }
+                IconButton(onClick = onToggleActive) {
+                    Icon(
+                        if (active) Icons.Outlined.Archive else Icons.Outlined.Unarchive,
+                        contentDescription = if (active) "Archive room" else "Restore room",
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
-            if (occupied) {
-                Text(
-                    occupancy.activeTenantName.orEmpty(),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "Since ${occupancy.activeJoinDate.formatDisplayOrDash()} · " +
-                        "${(occupancy.activeRentPaise ?: 0).toRupeesNoDecimals()}/month",
+            when {
+                !active -> Text(
+                    "Archived room. Its bills and tenancy history are kept. Restore it to assign a tenant again.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.PersonOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(6.dp))
+                occupied -> {
                     Text(
-                        "No active tenant. Tap to add one from the Tenants screen.",
+                        occupancy.activeTenantName.orEmpty(),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Since ${occupancy.activeJoinDate.formatDisplayOrDash()} · " +
+                            "${(occupancy.activeRentPaise ?: 0).toRupeesNoDecimals()}/month",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                else -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.PersonOff,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "No active tenant. Tap to add one from the Tenants screen.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -224,17 +276,55 @@ fun RoomEditDialog(
     onDismiss: () -> Unit,
     onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
 ) {
-    val room = occupancy.room
-    var number by remember { mutableStateOf(room.roomNumber) }
-    var floor by remember { mutableStateOf(room.floor) }
-    var rent by remember { mutableStateOf((room.defaultRentPaise / 100.0).toString()) }
-    var rate by remember { mutableStateOf(room.defaultElectricityRate.toString()) }
-    var notes by remember { mutableStateOf(room.notes) }
+    RoomFormDialog(
+        title = "Edit room",
+        initial = occupancy,
+        confirmLabel = "Save",
+        helper = "Room number changes update this room only. Historical bills keep the room they were issued for.",
+        onDismiss = onDismiss,
+        onSave = onSave,
+    )
+}
+
+@Composable
+private fun AddRoomDialog(
+    onDismiss: () -> Unit,
+    onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
+) {
+    RoomFormDialog(
+        title = "Add room",
+        initial = null,
+        confirmLabel = "Add Room",
+        helper = "New rooms start active. You can archive them later without deleting any history.",
+        onDismiss = onDismiss,
+        onSave = onSave,
+    )
+}
+
+@Composable
+private fun RoomFormDialog(
+    title: String,
+    initial: RoomOccupancy?,
+    confirmLabel: String,
+    helper: String,
+    onDismiss: () -> Unit,
+    onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
+) {
+    val room = initial?.room
+    var number by remember { mutableStateOf(room?.roomNumber.orEmpty()) }
+    var floor by remember { mutableStateOf(room?.floor.orEmpty()) }
+    var rent by remember {
+        mutableStateOf(room?.defaultRentPaise?.let { (it / 100.0).toString() }.orEmpty())
+    }
+    var rate by remember {
+        mutableStateOf(room?.defaultElectricityRate?.toString() ?: "8.0")
+    }
+    var notes by remember { mutableStateOf(room?.notes.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit room") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -275,7 +365,7 @@ fun RoomEditDialog(
                     )
                 }
                 Text(
-                    "Room number changes update this room only. Historical bills keep the room they were issued for.",
+                    helper,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -296,7 +386,7 @@ fun RoomEditDialog(
                         onSave(number.trim(), floor.trim(), rentPaise, parsedRate, notes.trim())
                     }
                 },
-            ) { Text("Save") }
+            ) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

@@ -25,6 +25,17 @@ class RoomsViewModel(private val container: AppContainer) : HrmViewModel() {
         .map { RoomsUiState(loading = false, rooms = it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RoomsUiState())
 
+    fun addRoom(
+        number: String,
+        floor: String,
+        rentPaise: Long,
+        rate: Double,
+        notes: String,
+    ) = runAction {
+        container.roomRepository.addRoom(number, floor, rentPaise, rate, notes)
+        notify("Room added")
+    }
+
     fun updateRoom(
         roomId: UUID,
         number: String,
@@ -35,6 +46,11 @@ class RoomsViewModel(private val container: AppContainer) : HrmViewModel() {
     ) = runAction {
         container.roomRepository.updateRoom(roomId, number, floor, rentPaise, rate, notes)
         notify("Room updated")
+    }
+
+    fun setRoomActive(roomId: UUID, active: Boolean) = runAction {
+        container.roomRepository.setRoomActive(roomId, active)
+        notify(if (active) "Room restored" else "Room archived. Its history is preserved.")
     }
 }
 

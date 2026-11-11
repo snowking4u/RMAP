@@ -38,11 +38,11 @@ The debug build uses application ID `com.homerentmanager.debug`, so it can be in
 
 ## First launch
 
-1. The database is created and exactly seven rooms are seeded with numbers 1–7, ground/first floor labels, a default rent of ₹8,000, and a default electricity rate of ₹8.00/unit.
+1. The database is created with seven starter rooms numbered 1–7, ground/first floor labels, a default rent of ₹8,000, and a default electricity rate of ₹8.00/unit. This is only a starting set; the app supports any number of rooms.
 2. Open **More → Settings** and fill in owner name, owner mobile, property name, property address, default electricity rate, bill due day, invoice prefix, and receipt prefix.
-3. Open **Rooms**, select each room, and adjust the room number/floor, monthly rent, electricity rate, and notes. Rooms cannot be added or removed.
-4. Add tenants from **Tenants**. A tenant can be registered without a room; starting a tenancy assigns an available room, monthly rent, security deposit, and joining date.
-5. Open **Electricity** to record the first meter reading. The first reading uses a previous value of 0 until a reading exists for the room. Enter the current reading to generate units and the electricity amount.
+3. Open **Rooms**, select each room, and adjust the room number/floor, monthly rent, electricity rate, and notes. Use **Add Room** for additional rooms. Unused rooms can be archived (not deleted) and restored later.
+4. Add tenants from **Tenants**. A tenant can be registered without a room; starting a tenancy assigns an available room, monthly rent, security deposit, and joining date. Archived rooms cannot be assigned.
+5. Open **Electricity** to record the first meter reading. The first reading uses a previous value of 0 until a reading exists for the room. After that, the app automatically fills the latest successful reading for that room; enter only the current reading to generate units and the electricity amount.
 6. Open **Billing**, choose the month, and generate bills. A bill can also be generated directly from the electricity form. Duplicate bills for the same room and month are rejected.
 7. Record payments from the bill detail screen. Partial payments are allowed; total payments can never exceed the bill total.
 8. Generate the invoice PDF from the bill screen and use **Save**, **Share**, or **Print**.
@@ -54,7 +54,7 @@ The debug build uses application ID `com.homerentmanager.debug`, so it can be in
 3. Review due dates and amounts.
 4. Record payments as they arrive. The dashboard and reports update automatically.
 5. Generate/share invoices and receipts.
-6. Create an encrypted manual backup and upload/save it to Google Drive or another location.
+6. Create a manual backup and upload/save it to Google Drive or another location. Manual backups are password-encrypted `.hrmbackup` files; choose a password of at least 8 characters and keep it safe, because the app does not store or recover it.
 7. Confirm the backup appears in the backup screen's last-backup summary.
 
 ## Tenancy changes
@@ -65,7 +65,7 @@ The debug build uses application ID `com.homerentmanager.debug`, so it can be in
 
 ## Notifications
 
-The app asks for the Android 13+ notification permission on first launch. It is used only for local backup reminders scheduled by WorkManager. Denying it does not affect rental features. Reminders are informational; the app never creates a backup without the user selecting a destination and entering a password.
+The app asks for the Android 13+ notification permission on first launch. It is used only for local backup reminders scheduled by WorkManager. Denying it does not affect rental features. Reminders are informational; the app never creates a backup without the user selecting a destination.
 
 ## File access
 
@@ -79,7 +79,7 @@ Uninstalling removes the app's local database. Android Auto Backup may restore i
 - the device has backup enabled and the app has been backed up,
 - the OS chooses to restore.
 
-This is controlled by Android and cannot be forced by the app. For a guaranteed recovery, keep a recent manual encrypted backup outside the device. See [BACKUP.md](BACKUP.md).
+This is controlled by Android and cannot be forced by the app. For a guaranteed recovery, keep a recent manual backup outside the device. See [BACKUP.md](BACKUP.md).
 
 ## Troubleshooting
 
@@ -89,5 +89,5 @@ This is controlled by Android and cannot be forced by the app. For a guaranteed 
 | Build fails with missing `aapt2` on ARM64 Linux | See the ARM64 note in [BUILD.md](BUILD.md). |
 | Bills cannot be generated | The room is occupied, the month is `yyyy-MM`, and no bill exists for that room/month. |
 | Payment rejected as overpayment | The amount exceeds the remaining balance. |
-| Restore rejects a backup | It was created by a newer schema, the password is wrong, or the file is damaged. |
+| Restore rejects a backup | The password is wrong, the file was created by an unsupported schema/format version, or the file is damaged. |
 | No Auto Backup after reinstall | Android scheduling, account backup settings, and the 25 MB quota all apply; use a manual backup. |

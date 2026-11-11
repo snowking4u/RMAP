@@ -2,6 +2,7 @@ package com.homerentmanager.ui.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.homerentmanager.AppContainer
+import com.homerentmanager.data.entity.MeterReadingEntity
 import com.homerentmanager.data.entity.SettingsEntity
 import com.homerentmanager.data.model.BillWithDetails
 import com.homerentmanager.data.model.TenancyWithDetails
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class BillingUiState(
     val loading: Boolean = true,
@@ -22,6 +24,7 @@ data class BillingUiState(
     val bills: List<BillWithDetails> = emptyList(),
     val activeTenancies: List<TenancyWithDetails> = emptyList(),
     val settings: SettingsEntity = SettingsEntity(),
+    val latestReadings: Map<UUID, MeterReadingEntity> = emptyMap(),
     val billedPaise: Long = 0,
     val collectedPaise: Long = 0,
     val outstandingPaise: Long = 0,
@@ -40,26 +43,30 @@ class BillingViewModel(private val container: AppContainer) : HrmViewModel() {
         container.billingRepository.observeCollectedForMonth(it)
     }
 
-    val state = combine(
+    private val core = combine(
         bills,
         collected,
         container.tenancyRepository.observeActive(),
         container.settingsRepository.observe(),
-        generating,
-    ) { bills, collectedPaise, active, settings, isGenerating ->
+        container.electricityRepository.observeLatestPerRoom(),
+    ) { bills, collectedPaise, active, settings, readings ->
         BillingUiState(
             loading = false,
             month = month.value,
             bills = bills,
             activeTenancies = active,
             settings = settings ?: SettingsEntity(),
+            latestReadings = readings.associateBy { it.roomId },
             billedPaise = bills.sumOf { it.bill.totalPaise },
             collectedPaise = collectedPaise,
             outstandingPaise = bills.sumOf {
                 (it.bill.totalPaise - it.bill.paidPaise).coerceAtLeast(0)
             },
-            generating = isGenerating,
         )
+    }
+
+    val state = combine(core, generating) { ui, isGenerating ->
+        ui.copy(generating = isGenerating)
     }.combine(generationVersion) { ui, version ->
         ui.copy(generationVersion = version)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BillingUiState())

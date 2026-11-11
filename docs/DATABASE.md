@@ -20,20 +20,25 @@ Money never uses `Float`/`Double`. Electricity is inherently fractional (units, 
 
 ### `rooms`
 
-One row per rental room. Exactly seven rows are seeded on first creation with `INSERT OR IGNORE`, so a partially seeded database cannot exceed seven defaults.
+One row per managed rental room. Seven starter rooms are seeded on first creation with
+`INSERT OR IGNORE`, but the app supports any number of rooms. Owners can add rooms, edit
+rent/floor/rate/notes, and archive unused rooms.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | TEXT PK | UUID |
 | `room_number` | TEXT | Unique index |
 | `floor` | TEXT | Free text |
-| `default_rent_paise` | INTEGER | Defaults to ₹8,000 |
-| `default_electricity_rate` | REAL | Default 8.00 |
+| `default_rent_paise` | INTEGER | Defaults to ₹8,000 for seeded rooms |
+| `default_electricity_rate` | REAL | Default 8.00 for seeded rooms |
 | `notes` | TEXT | |
-| `is_active` | INTEGER | |
+| `is_active` | INTEGER | `0` = archived, `1` = active |
 | `created_at` | INTEGER | |
 
-Rooms are editable but not creatable/deletable in the UI. Foreign keys use `RESTRICT`, so historical rows cannot lose their room.
+Rooms are never hard-deleted. Archiving is refused while the room has an active tenancy.
+Archived rooms keep all bills, payments, readings, and tenancy history, but are excluded
+from new tenant assignment and the electricity room picker. Foreign keys use `RESTRICT`, so
+historical rows cannot lose their room.
 
 ### `tenants`
 
@@ -59,7 +64,10 @@ Append-only electricity history. Each reading stores previous/current values, un
 
 Indexes: `room_id`, `tenancy_id`, `bill_id`, `(room_id, reading_date)`.
 
-The next reading's `previous_reading` is the latest reading for the room. The first reading starts from 0.
+The next reading's `previous_reading` is the latest reading for the physical room. The first
+reading starts from 0. Billing automatically reads the latest room reading inside the bill
+transaction; the owner only enters the current reading. A current reading below the previous
+reading aborts the transaction, so no partial bill or reading is written.
 
 ### `bills`
 
@@ -103,7 +111,7 @@ Overpayment, zero/negative amounts, and payments on a fully paid bill are reject
 
 ### `settings`
 
-Single row with `id = 1`: owner/property details, default electricity rate, bill due day, invoice/receipt prefixes, backup reminder days, and last manual backup metadata. The backup password is **never** stored.
+Single row with `id = 1`: owner/property details, default electricity rate, bill due day, invoice/receipt prefixes, backup reminder days, and last manual backup metadata. No backup password or encryption key is stored.
 
 ## Transactions
 
@@ -137,4 +145,8 @@ Adding a future schema version requires:
 
 ## Seeding
 
-`SeedCallback.onCreate` inserts seven rooms and one settings row. It only runs when the database file is first created. It does not run on every open and never overwrites user edits. Restore deletes and re-imports all rows, including the seven rooms, from the validated snapshot.
+`SeedCallback.onCreate` inserts seven starter rooms and one settings row. It only runs when
+the database file is first created. It does not run on every open and never overwrites user
+edits. The seven rooms are a starting point, not a maximum. Restore deletes and re-imports
+all rows, including every room, from the validated snapshot; the backup format has no
+fixed room-count assumption.

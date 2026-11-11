@@ -89,6 +89,7 @@ class BillDetailViewModel(
             val detail = container.billingRepository.observeById(billId).first()
                 ?: error("Bill not found")
             val allPayments = container.billingRepository.getPaymentsForBill(billId)
+            val reading = container.billingRepository.getReadingForBill(billId)
             val settings = container.settingsRepository.get()
             container.pdfService.createReceiptFile(
                 settings = settings,
@@ -97,6 +98,7 @@ class BillDetailViewModel(
                 roomNumber = detail.room.roomNumber,
                 payment = payment.payment,
                 billPayments = allPayments,
+                reading = reading,
             )
         } catch (e: Exception) {
             notify(friendlyMessage(e))

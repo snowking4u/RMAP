@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
+import com.homerentmanager.data.entity.MeterReadingEntity
 import com.homerentmanager.data.model.TenancyWithDetails
 import com.homerentmanager.data.repository.BillingRepository
 import com.homerentmanager.ui.components.EmptyState
@@ -56,6 +57,7 @@ import com.homerentmanager.ui.components.Tag
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.BillingViewModel
 import com.homerentmanager.util.monthLabel
+import com.homerentmanager.util.formatUnits
 import com.homerentmanager.util.parseDecimal
 import com.homerentmanager.util.parseMoneyToPaise
 import com.homerentmanager.util.toRupeesNoDecimals
@@ -229,6 +231,7 @@ fun BillingScreen(
         GenerateBillsDialog(
             month = state.month,
             tenancies = state.activeTenancies,
+            latestReadings = state.latestReadings,
             onDismiss = { generateOpen = false },
             onGenerate = { requests ->
                 viewModel.generate(requests)
@@ -242,16 +245,20 @@ fun BillingScreen(
 private fun GenerateBillsDialog(
     month: String,
     tenancies: List<TenancyWithDetails>,
+    latestReadings: Map<UUID, MeterReadingEntity>,
     onDismiss: () -> Unit,
     onGenerate: (List<BillingRepository.BillRequest>) -> Unit,
 ) {
-    val selected = remember { mutableStateMapOf<UUID, Boolean>() }
-    val readings = remember { mutableStateMapOf<UUID, String>() }
-    val rates = remember { mutableStateMapOf<UUID, String>() }
-    tenancies.forEach { detail ->
-        if (detail.tenancy.id !in selected) selected[detail.tenancy.id] = true
-        if (detail.tenancy.id !in rates) {
-            rates[detail.tenancy.id] = detail.room.defaultElectricityRate.toString()
+    val tenancyIds = tenancies.map { it.tenancy.id }
+    val selected = remember(tenancyIds) {
+        mutableStateMapOf<UUID, Boolean>().apply {
+            tenancyIds.forEach { put(it, true) }
+        }
+    }
+    val readings = remember(tenancyIds) { mutableStateMapOf<UUID, String>() }
+    val rates = remember(tenancyIds) {
+        mutableStateMapOf<UUID, String>().apply {
+            tenancies.forEach { put(it.tenancy.id, it.room.defaultElectricityRate.toString()) }
         }
     }
     var additional by remember { mutableStateOf("0") }
@@ -295,6 +302,16 @@ private fun GenerateBillsDialog(
                                         "Rent ${detail.tenancy.monthlyRentPaise.toRupeesNoDecimals()}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    val previous = latestReadings[detail.room.id]?.currentReading
+                                    Text(
+                                        if (previous == null) {
+                                            "Previous Reading: none (starts at 0)"
+                                        } else {
+                                            "Previous Reading: ${previous.formatUnits()}"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
                             }
@@ -377,6 +394,12 @@ private fun GenerateBillsDialog(
                         val current = if (currentText.isBlank()) null else parseDecimal(currentText)
                         if (currentText.isNotBlank() && current == null) {
                             error = "Enter a valid reading for room ${detail.room.roomNumber}"
+                            return@TextButton
+                        }
+                        val previous = latestReadings[detail.room.id]?.currentReading ?: 0.0
+                        if (current != null && current < previous) {
+                            error = "Current reading for room ${detail.room.roomNumber} cannot be " +
+                                "lower than the previous reading ${previous.formatUnits()}"
                             return@TextButton
                         }
                         requests += BillingRepository.BillRequest(

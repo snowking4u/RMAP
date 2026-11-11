@@ -57,6 +57,7 @@ class PaymentsViewModel(private val container: AppContainer) : HrmViewModel() {
                 ?: error("Room not found")
             val settings = container.settingsRepository.get()
             val billPayments = container.billingRepository.getPaymentsForBill(payment.bill.id)
+            val reading = container.billingRepository.getReadingForBill(payment.bill.id)
             container.pdfService.createReceiptFile(
                 settings = settings,
                 bill = payment.bill,
@@ -64,6 +65,7 @@ class PaymentsViewModel(private val container: AppContainer) : HrmViewModel() {
                 roomNumber = room.roomNumber,
                 payment = payment.payment,
                 billPayments = billPayments,
+                reading = reading,
             )
         } catch (e: Exception) {
             notify(friendlyMessage(e))
