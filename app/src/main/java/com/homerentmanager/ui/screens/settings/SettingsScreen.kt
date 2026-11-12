@@ -2,8 +2,6 @@ package com.homerentmanager.ui.screens.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,8 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Save
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,15 +23,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.InfoBanner
 import com.homerentmanager.ui.components.LabeledValue
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SectionHeader
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.SettingsViewModel
 import com.homerentmanager.util.parseDecimal
@@ -74,15 +73,19 @@ fun SettingsScreen(
             mutableStateOf(settings.backupReminderDays.toString())
         }
         var error by remember { mutableStateOf<String?>(null) }
+        var saving by remember { mutableStateOf(false) }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
                         SectionHeader(title = "Property details")
                         OutlinedTextField(
                             value = propertyName,
@@ -110,6 +113,7 @@ fun SettingsScreen(
                             onValueChange = { ownerMobile = it },
                             label = { Text("Owner mobile") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -118,13 +122,17 @@ fun SettingsScreen(
 
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
                         SectionHeader(title = "Billing defaults")
                         OutlinedTextField(
                             value = rate,
                             onValueChange = { rate = it },
                             label = { Text("Default electricity rate (₹/unit)") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
@@ -132,24 +140,23 @@ fun SettingsScreen(
                             onValueChange = { dueDay = it },
                             label = { Text("Bill due day (1–28)") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            OutlinedTextField(
-                                value = invoicePrefix,
-                                onValueChange = { invoicePrefix = it },
-                                label = { Text("Invoice prefix") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            OutlinedTextField(
-                                value = receiptPrefix,
-                                onValueChange = { receiptPrefix = it },
-                                label = { Text("Receipt prefix") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                        OutlinedTextField(
+                            value = invoicePrefix,
+                            onValueChange = { invoicePrefix = it },
+                            label = { Text("Invoice prefix") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = receiptPrefix,
+                            onValueChange = { receiptPrefix = it },
+                            label = { Text("Receipt prefix") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Text(
                             "New bills use the room's rate when set, otherwise this default. " +
                                 "Prefixes and numbering are snapshotted into each generated document.",
@@ -162,13 +169,17 @@ fun SettingsScreen(
 
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
                         SectionHeader(title = "Backup reminders")
                         OutlinedTextField(
                             value = reminderDays,
                             onValueChange = { reminderDays = it },
                             label = { Text("Remind me every N days (1–365)") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Text(
@@ -207,6 +218,7 @@ fun SettingsScreen(
                             else -> null
                         }
                         if (error == null) {
+                            saving = true
                             viewModel.save(
                                 settings.copy(
                                     ownerName = ownerName.trim(),
@@ -218,15 +230,19 @@ fun SettingsScreen(
                                     invoicePrefix = invoicePrefix.trim(),
                                     receiptPrefix = receiptPrefix.trim(),
                                     backupReminderDays = parsedReminder!!,
-                                ),
-                            )
+                                )
+                            ) { ok ->
+                                saving = false
+                                if (!ok) error = "Could not save settings. Please try again."
+                            }
                         }
                     },
+                    enabled = !saving,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Outlined.Save, contentDescription = null)
+                    Icon(HrmIcons.Save, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Save settings")
+                    Text(if (saving) "Saving…" else "Save settings")
                 }
             }
 

@@ -83,9 +83,13 @@ class BillingViewModel(private val container: AppContainer) : HrmViewModel() {
         month.value = currentMonth()
     }
 
-    fun generate(requests: List<BillingRepository.BillRequest>) {
+    fun generate(
+        requests: List<BillingRepository.BillRequest>,
+        onResult: (Boolean) -> Unit = {},
+    ) {
         if (requests.isEmpty()) {
             notify("Enter at least one bill to generate")
+            onResult(false)
             return
         }
         if (generating.value) return
@@ -102,8 +106,10 @@ class BillingViewModel(private val container: AppContainer) : HrmViewModel() {
                 if (result.createdBillIds.isNotEmpty()) {
                     generationVersion.value = generationVersion.value + 1
                 }
+                onResult(result.createdBillIds.isNotEmpty())
             } catch (e: Exception) {
                 notify(friendlyMessage(e))
+                onResult(false)
             } finally {
                 generating.value = false
             }

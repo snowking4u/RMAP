@@ -5,18 +5,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.MeetingRoom
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -57,6 +53,7 @@ import com.homerentmanager.ui.screens.rooms.RoomsScreen
 import com.homerentmanager.ui.screens.settings.SettingsScreen
 import com.homerentmanager.ui.screens.tenants.TenantDetailScreen
 import com.homerentmanager.ui.screens.tenants.TenantsScreen
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.viewmodel.HrmViewModelFactory
 import java.util.UUID
 
@@ -111,11 +108,11 @@ private data class BottomDestination(
 )
 
 private val bottomDestinations = listOf(
-    BottomDestination(Routes.DASHBOARD, "Home", Icons.Outlined.Dashboard),
-    BottomDestination(Routes.ROOMS, "Rooms", Icons.Outlined.MeetingRoom),
-    BottomDestination(Routes.TENANTS, "Tenants", Icons.Outlined.People),
-    BottomDestination(Routes.BILLING, "Billing", Icons.Outlined.ReceiptLong),
-    BottomDestination(Routes.MORE, "More", Icons.Outlined.MoreHoriz),
+    BottomDestination(Routes.DASHBOARD, "Home", HrmIcons.Home),
+    BottomDestination(Routes.ROOMS, "Rooms", HrmIcons.Rooms),
+    BottomDestination(Routes.TENANTS, "Tenants", HrmIcons.Tenants),
+    BottomDestination(Routes.BILLING, "Billing", HrmIcons.Billing),
+    BottomDestination(Routes.MORE, "More", HrmIcons.More),
 )
 
 @Composable
@@ -160,7 +157,9 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
     }
 
     Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+        ),
         bottomBar = {
             if (isTopLevel) {
                 NavigationBar {
@@ -182,34 +181,10 @@ fun HrmApp(container: AppContainer, openBackupInitially: Boolean) {
             navController = navController,
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(padding),
-            enterTransition = {
-                fadeIn(tween(180)) + slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Start,
-                    tween(220),
-                    initialOffset = { it / 12 },
-                )
-            },
-            exitTransition = {
-                fadeOut(tween(150)) + slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Start,
-                    tween(220),
-                    targetOffset = { it / 12 },
-                )
-            },
-            popEnterTransition = {
-                fadeIn(tween(180)) + slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.End,
-                    tween(220),
-                    initialOffset = { it / 12 },
-                )
-            },
-            popExitTransition = {
-                fadeOut(tween(150)) + slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.End,
-                    tween(220),
-                    targetOffset = { it / 12 },
-                )
-            },
+            enterTransition = { fadeIn(tween(140)) },
+            exitTransition = { fadeOut(tween(90)) },
+            popEnterTransition = { fadeIn(tween(140)) },
+            popExitTransition = { fadeOut(tween(90)) },
         ) {
             composable(Routes.DASHBOARD) {
                 DashboardScreen(

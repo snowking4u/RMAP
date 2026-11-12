@@ -14,19 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Archive
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.MeetingRoom
 import androidx.compose.material.icons.outlined.PersonOff
-import androidx.compose.material.icons.outlined.Unarchive
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -39,15 +34,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.data.model.RoomOccupancy
+import com.homerentmanager.ui.components.ConfirmDialog
+import com.homerentmanager.ui.components.HrmDialog
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
-import com.homerentmanager.ui.components.StatCard
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.RoomsViewModel
 import com.homerentmanager.util.formatDisplayOrDash
@@ -67,6 +68,7 @@ fun RoomsScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<RoomOccupancy?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var archiving by remember { mutableStateOf<RoomOccupancy?>(null) }
 
     val activeRooms = state.rooms.filter { it.room.isActive }
     val archivedRooms = state.rooms.size - activeRooms.size
@@ -83,8 +85,8 @@ fun RoomsScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { adding = true },
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("Add Room") },
+                icon = { Icon(HrmIcons.AddRoom, contentDescription = null) },
+                text = { Text("Add room") },
             )
         },
     ) { padding ->
@@ -94,24 +96,26 @@ fun RoomsScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Occupied",
-                        value = occupied.toString(),
-                        supporting = "Rooms with a tenant",
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Vacant",
-                        value = (activeRooms.size - occupied).toString(),
-                        supporting = "Ready to rent",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                StatGrid(
+                    specs = listOf(
+                        StatSpec(
+                            label = "Occupied",
+                            value = occupied.toString(),
+                            supporting = "Rooms with a tenant",
+                            icon = HrmIcons.Rooms,
+                        ),
+                        StatSpec(
+                            label = "Vacant",
+                            value = (activeRooms.size - occupied).toString(),
+                            supporting = "Ready to rent",
+                            icon = HrmIcons.AddRoom,
+                        ),
+                    ),
+                )
             }
 
             items(state.rooms, key = { it.room.id }) { occupancy ->
@@ -120,7 +124,11 @@ fun RoomsScreen(
                     onOpen = { onOpenRoom(occupancy.room.id) },
                     onEdit = { editing = occupancy },
                     onToggleActive = {
-                        viewModel.setRoomActive(occupancy.room.id, !occupancy.room.isActive)
+                        if (occupancy.room.isActive) {
+                            archiving = occupancy
+                        } else {
+                            viewModel.setRoomActive(occupancy.room.id, true)
+                        }
                     },
                 )
             }
@@ -133,9 +141,8 @@ fun RoomsScreen(
         RoomEditDialog(
             occupancy = room,
             onDismiss = { editing = null },
-            onSave = { number, floor, rentPaise, rate, notes ->
-                viewModel.updateRoom(room.room.id, number, floor, rentPaise, rate, notes)
-                editing = null
+            onSave = { number, floor, rentPaise, rate, notes, onResult ->
+                viewModel.updateRoom(room.room.id, number, floor, rentPaise, rate, notes, onResult)
             },
         )
     }
@@ -143,10 +150,23 @@ fun RoomsScreen(
     if (adding) {
         AddRoomDialog(
             onDismiss = { adding = false },
-            onSave = { number, floor, rentPaise, rate, notes ->
-                viewModel.addRoom(number, floor, rentPaise, rate, notes)
-                adding = false
+            onSave = { number, floor, rentPaise, rate, notes, onResult ->
+                viewModel.addRoom(number, floor, rentPaise, rate, notes, onResult)
             },
+        )
+    }
+
+    archiving?.let { room ->
+        ConfirmDialog(
+            title = "Archive room ${room.room.roomNumber}?",
+            message = "The room will be hidden from new tenancies. All bills, payments and " +
+                "tenancy history stay safe and the room can be restored later.",
+            confirmLabel = "Archive",
+            onConfirm = {
+                viewModel.setRoomActive(room.room.id, false)
+                archiving = null
+            },
+            onDismiss = { archiving = null },
         )
     }
 }
@@ -195,13 +215,15 @@ private fun RoomCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Rent ${room.defaultRentPaise.toRupeesNoDecimals()} · ${room.defaultElectricityRate.formatRate()}/unit",
+                        "Rent ${room.defaultRentPaise.toRupeesNoDecimals()} · " +
+                            "${room.defaultElectricityRate.formatRate()}/unit",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Spacer(Modifier.width(8.dp))
                 Tag(
                     text = when {
                         !active -> "Archived"
@@ -219,15 +241,6 @@ private fun RoomCard(
                         MaterialTheme.colorScheme.surfaceVariant
                     },
                 )
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit room")
-                }
-                IconButton(onClick = onToggleActive) {
-                    Icon(
-                        if (active) Icons.Outlined.Archive else Icons.Outlined.Unarchive,
-                        contentDescription = if (active) "Archive room" else "Restore room",
-                    )
-                }
             }
             Spacer(Modifier.height(10.dp))
             when {
@@ -266,6 +279,26 @@ private fun RoomCard(
                     }
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onEdit) {
+                    Icon(HrmIcons.EditRoom, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Edit")
+                }
+                TextButton(onClick = onToggleActive) {
+                    Icon(
+                        if (active) HrmIcons.Archive else HrmIcons.Unarchive,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (active) "Archive" else "Restore")
+                }
+            }
         }
     }
 }
@@ -274,7 +307,14 @@ private fun RoomCard(
 fun RoomEditDialog(
     occupancy: RoomOccupancy,
     onDismiss: () -> Unit,
-    onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
+    onSave: (
+        number: String,
+        floor: String,
+        rentPaise: Long,
+        rate: Double,
+        notes: String,
+        onResult: (Boolean) -> Unit,
+    ) -> Unit,
 ) {
     RoomFormDialog(
         title = "Edit room",
@@ -289,12 +329,19 @@ fun RoomEditDialog(
 @Composable
 private fun AddRoomDialog(
     onDismiss: () -> Unit,
-    onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
+    onSave: (
+        number: String,
+        floor: String,
+        rentPaise: Long,
+        rate: Double,
+        notes: String,
+        onResult: (Boolean) -> Unit,
+    ) -> Unit,
 ) {
     RoomFormDialog(
         title = "Add room",
         initial = null,
-        confirmLabel = "Add Room",
+        confirmLabel = "Add room",
         helper = "New rooms start active. You can archive them later without deleting any history.",
         onDismiss = onDismiss,
         onSave = onSave,
@@ -308,7 +355,14 @@ private fun RoomFormDialog(
     confirmLabel: String,
     helper: String,
     onDismiss: () -> Unit,
-    onSave: (number: String, floor: String, rentPaise: Long, rate: Double, notes: String) -> Unit,
+    onSave: (
+        number: String,
+        floor: String,
+        rentPaise: Long,
+        rate: Double,
+        notes: String,
+        onResult: (Boolean) -> Unit,
+    ) -> Unit,
 ) {
     val room = initial?.room
     var number by remember { mutableStateOf(room?.roomNumber.orEmpty()) }
@@ -321,73 +375,83 @@ private fun RoomFormDialog(
     }
     var notes by remember { mutableStateOf(room?.notes.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = number,
-                    onValueChange = { number = it },
-                    label = { Text("Room number") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = floor,
-                    onValueChange = { floor = it },
-                    label = { Text("Floor") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = rent,
-                    onValueChange = { rent = it },
-                    label = { Text("Default rent (₹)") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = rate,
-                    onValueChange = { rate = it },
-                    label = { Text("Electricity rate (₹/unit)") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes") },
-                    minLines = 2,
-                )
-                if (error != null) {
-                    Text(
-                        error.orEmpty(),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+    HrmDialog(
+        title = title,
+        confirmLabel = confirmLabel,
+        onDismiss = onDismiss,
+        busy = saving,
+        onConfirm = {
+            val rentPaise = parseMoneyToPaise(rent)
+            val parsedRate = parseDecimal(rate)
+            error = when {
+                number.isBlank() -> "Room number is required"
+                rentPaise == null || rentPaise <= 0 -> "Enter a valid default rent"
+                parsedRate == null || parsedRate < 0 -> "Enter a valid electricity rate"
+                else -> null
+            }
+            if (error == null) {
+                saving = true
+                onSave(number.trim(), floor.trim(), rentPaise!!, parsedRate!!, notes.trim()) { ok ->
+                    saving = false
+                    if (ok) {
+                        onDismiss()
+                    } else {
+                        error = "Could not save the room. Check the details and try again."
+                    }
                 }
-                Text(
-                    helper,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val rentPaise = parseMoneyToPaise(rent)
-                    val parsedRate = parseDecimal(rate)
-                    if (number.isBlank()) {
-                        error = "Room number is required"
-                    } else if (rentPaise == null || rentPaise <= 0) {
-                        error = "Enter a valid default rent"
-                    } else if (parsedRate == null || parsedRate < 0) {
-                        error = "Enter a valid electricity rate"
-                    } else {
-                        onSave(number.trim(), floor.trim(), rentPaise, parsedRate, notes.trim())
-                    }
-                },
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        OutlinedTextField(
+            value = number,
+            onValueChange = { number = it },
+            label = { Text("Room number *") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = floor,
+            onValueChange = { floor = it },
+            label = { Text("Floor") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = rent,
+            onValueChange = { rent = it },
+            label = { Text("Default rent (₹) *") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = rate,
+            onValueChange = { rate = it },
+            label = { Text("Electricity rate (₹/unit) *") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Notes") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (error != null) {
+            Text(
+                error.orEmpty(),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text(
+            helper,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }

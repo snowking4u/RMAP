@@ -2,24 +2,19 @@ package com.homerentmanager.ui.screens.history
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,10 +26,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SearchBox
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.TenancyFilter
 import com.homerentmanager.ui.viewmodel.TenancyHistoryViewModel
@@ -67,7 +64,7 @@ fun TenancyHistoryScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
@@ -91,7 +88,7 @@ fun TenancyHistoryScreen(
             if (state.tenancies.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.History,
+                        icon = HrmIcons.History,
                         title = "No tenancy records",
                         message = "Start a tenancy from a tenant profile to build history here.",
                     )
@@ -102,7 +99,9 @@ fun TenancyHistoryScreen(
                     Card(
                         onClick = { onOpenTenant(detail.tenant.id) },
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -134,17 +133,18 @@ fun TenancyHistoryScreen(
                                     },
                                 )
                             }
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "${detail.tenancy.joinDate.formatDisplayOrDash()} – " +
+                                    "${detail.tenancy.leaveDate.formatDisplayOrDash()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { onOpenRoom(detail.room.id) }) {
                                     Text("Room ${detail.room.roomNumber}")
                                 }
-                                Text(
-                                    "${detail.tenancy.joinDate.formatDisplayOrDash()} – " +
-                                        "${detail.tenancy.leaveDate.formatDisplayOrDash()}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                                 Spacer(Modifier.weight(1f))
                                 Text(
                                     detail.tenancy.monthlyRentPaise.toRupeesNoDecimals(),
@@ -154,7 +154,8 @@ fun TenancyHistoryScreen(
                             }
                             if (detail.tenancy.securityDepositPaise > 0) {
                                 Text(
-                                    "Deposit ${detail.tenancy.securityDepositPaise.toRupeesNoDecimals()}",
+                                    "Deposit " +
+                                        detail.tenancy.securityDepositPaise.toRupeesNoDecimals(),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

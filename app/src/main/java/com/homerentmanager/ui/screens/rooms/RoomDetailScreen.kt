@@ -2,6 +2,8 @@ package com.homerentmanager.ui.screens.rooms
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,12 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.ElectricBolt
-import androidx.compose.material.icons.outlined.MeetingRoom
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,14 +38,18 @@ import com.homerentmanager.AppContainer
 import com.homerentmanager.data.entity.TenancyStatus
 import com.homerentmanager.ui.components.ClickableRow
 import com.homerentmanager.ui.components.DateField
-import com.homerentmanager.ui.components.DetailRow
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmDialog
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LabeledValue
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SectionHeader
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
 import com.homerentmanager.ui.components.StatusChip
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.RoomDetailViewModel
 import com.homerentmanager.util.formatDisplay
@@ -64,6 +63,7 @@ import com.homerentmanager.util.toRupeesNoDecimals
 import java.time.LocalDate
 import java.util.UUID
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RoomDetailScreen(
     container: AppContainer,
@@ -88,7 +88,7 @@ fun RoomDetailScreen(
         actions = {
             if (state.occupancy != null) {
                 IconButton(onClick = { editOpen = true }) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit room")
+                    Icon(HrmIcons.EditRoom, contentDescription = "Edit room")
                 }
             }
         },
@@ -100,7 +100,7 @@ fun RoomDetailScreen(
         val occupancy = state.occupancy
         if (occupancy == null) {
             EmptyState(
-                icon = Icons.Outlined.MeetingRoom,
+                icon = HrmIcons.Rooms,
                 title = "Room not found",
                 message = "This room may have been removed. Return to the rooms list.",
                 modifier = Modifier.padding(padding),
@@ -118,7 +118,7 @@ fun RoomDetailScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -155,7 +155,10 @@ fun RoomDetailScreen(
                                 LabeledValue("Mobile", activeTenancy.tenant.mobile)
                             }
                             Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
                                 Button(onClick = { onOpenTenant(activeTenancy.tenant.id) }) {
                                     Text("Open tenant")
                                 }
@@ -176,7 +179,7 @@ fun RoomDetailScreen(
                             )
                             Spacer(Modifier.height(10.dp))
                             Button(onClick = onAddTenant) {
-                                Icon(Icons.Outlined.Add, contentDescription = null)
+                                Icon(HrmIcons.AddRoom, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("Add tenant")
                             }
@@ -186,33 +189,27 @@ fun RoomDetailScreen(
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RoomStat(
-                        label = "Default rent",
-                        value = occupancy.room.defaultRentPaise.toRupeesNoDecimals(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    RoomStat(
-                        label = "Electricity rate",
-                        value = occupancy.room.defaultElectricityRate.formatRate(),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RoomStat(
-                        label = "Lifetime billed",
-                        value = totalBilled.toRupeesNoDecimals(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    RoomStat(
-                        label = "Outstanding",
-                        value = outstanding.toRupeesNoDecimals(),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                StatGrid(
+                    specs = listOf(
+                        StatSpec(
+                            label = "Default rent",
+                            value = occupancy.room.defaultRentPaise.toRupeesNoDecimals(),
+                        ),
+                        StatSpec(
+                            label = "Electricity rate",
+                            value = occupancy.room.defaultElectricityRate.formatRate(),
+                        ),
+                        StatSpec(
+                            label = "Lifetime billed",
+                            value = totalBilled.toRupeesNoDecimals(),
+                        ),
+                        StatSpec(
+                            label = "Outstanding",
+                            value = outstanding.toRupeesNoDecimals(),
+                            accent = MaterialTheme.colorScheme.error,
+                        ),
+                    ),
+                )
             }
 
             if (occupancy.room.notes.isNotBlank()) {
@@ -244,7 +241,7 @@ fun RoomDetailScreen(
             if (state.bills.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.MeetingRoom,
+                        icon = HrmIcons.Billing,
                         title = "No bills yet",
                         message = "Bills generated for this room will appear here, including old tenants.",
                     )
@@ -269,6 +266,7 @@ fun RoomDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            Spacer(Modifier.width(8.dp))
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     detail.bill.totalPaise.toRupeesNoDecimals(),
@@ -291,7 +289,7 @@ fun RoomDetailScreen(
             if (state.readings.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.ElectricBolt,
+                        icon = HrmIcons.Electricity,
                         title = "No readings recorded",
                         message = "Add readings from the Electricity screen to bill consumption accurately.",
                     )
@@ -358,9 +356,8 @@ fun RoomDetailScreen(
         RoomEditDialog(
             occupancy = state.occupancy!!,
             onDismiss = { editOpen = false },
-            onSave = { number, floor, rent, rate, notes ->
-                viewModel.updateRoom(number, floor, rent, rate, notes)
-                editOpen = false
+            onSave = { number, floor, rent, rate, notes, onResult ->
+                viewModel.updateRoom(number, floor, rent, rate, notes, onResult)
             },
         )
     }
@@ -369,29 +366,8 @@ fun RoomDetailScreen(
         EndTenancyDialog(
             defaultDate = LocalDate.now(),
             onDismiss = { endTenancyId = null },
-            onConfirm = { date ->
-                viewModel.endTenancy(id, date)
-                endTenancyId = null
-            },
+            onConfirm = { date, onResult -> viewModel.endTenancy(id, date, onResult) },
         )
-    }
-}
-
-@Composable
-private fun RoomStat(label: String, value: String, modifier: Modifier = Modifier) {
-    OutlinedCard(modifier = modifier, shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
     }
 }
 
@@ -399,29 +375,40 @@ private fun RoomStat(label: String, value: String, modifier: Modifier = Modifier
 fun EndTenancyDialog(
     defaultDate: LocalDate,
     onDismiss: () -> Unit,
-    onConfirm: (LocalDate) -> Unit,
+    onConfirm: (LocalDate, (Boolean) -> Unit) -> Unit,
 ) {
     var date by remember { mutableStateOf(defaultDate) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("End tenancy") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "The tenant will no longer be billed for this room. Existing bills, payments " +
-                        "and tenancy history are preserved.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                DateField(
-                    label = "Leaving date",
-                    date = date,
-                    onDateChange = { date = it },
-                )
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    HrmDialog(
+        title = "End tenancy",
+        confirmLabel = "End tenancy",
+        onDismiss = onDismiss,
+        busy = saving,
+        onConfirm = {
+            saving = true
+            onConfirm(date) { ok ->
+                saving = false
+                if (ok) {
+                    onDismiss()
+                } else {
+                    error = "Could not end the tenancy. Please try again."
+                }
             }
         },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(date) }) { Text("End tenancy") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        Text(
+            "The tenant will no longer be billed for this room. Existing bills, payments " +
+                "and tenancy history are preserved.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        DateField(
+            label = "Leaving date",
+            date = date,
+            onDateChange = { date = it },
+        )
+        if (error != null) {
+            Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+        }
+    }
 }

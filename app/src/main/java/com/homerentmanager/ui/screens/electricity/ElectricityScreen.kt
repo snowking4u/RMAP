@@ -3,23 +3,18 @@ package com.homerentmanager.ui.screens.electricity
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ElectricBolt
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
@@ -34,16 +29,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.domain.BillingCalculator
 import com.homerentmanager.ui.components.DateField
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SectionHeader
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.ElectricityViewModel
 import com.homerentmanager.util.formatDisplay
@@ -67,6 +65,7 @@ fun ElectricityScreen(
     var current by remember { mutableStateOf("") }
     var rate by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.selectedRoomId, state.latestReading?.id) {
         previous = state.latestReading?.currentReading?.formatUnits() ?: "0"
@@ -80,13 +79,17 @@ fun ElectricityScreen(
     val previousValue = parseDecimal(previous)
     val currentValue = parseDecimal(current)
     val rateValue = parseDecimal(rate)
-    val previewUnits = if (previousValue != null && currentValue != null && currentValue >= previousValue) {
+    val previewUnits = if (
+        previousValue != null && currentValue != null && currentValue >= previousValue
+    ) {
         runCatching { BillingCalculator.units(previousValue, currentValue) }.getOrNull()
     } else {
         null
     }
     val previewAmount = if (previewUnits != null && rateValue != null && rateValue >= 0) {
-        runCatching { BillingCalculator.electricityAmountPaise(previewUnits, rateValue) }.getOrNull()
+        runCatching {
+            BillingCalculator.electricityAmountPaise(previewUnits, rateValue)
+        }.getOrNull()
     } else {
         null
     }
@@ -104,7 +107,7 @@ fun ElectricityScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -139,7 +142,8 @@ fun ElectricityScreen(
                         Text(
                             "Latest reading: " +
                                 (state.latestReading?.let {
-                                    "${it.readingDate.formatDisplay()} · ${it.currentReading.formatUnits()} units"
+                                    "${it.readingDate.formatDisplay()} · " +
+                                        "${it.currentReading.formatUnits()} units"
                                 } ?: "none recorded"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -152,8 +156,8 @@ fun ElectricityScreen(
                         if (!state.hasActiveTenancy) {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "An active tenancy is required to add a reading. Readings made during " +
-                                    "billing are linked to the bill automatically.",
+                                "An active tenancy is required to add a reading. Readings made " +
+                                    "during billing are linked to the bill automatically.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error,
                             )
@@ -168,34 +172,43 @@ fun ElectricityScreen(
 
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        Text(
+                            "Previous reading is filled automatically from the latest saved " +
+                                "reading for this room.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         DateField(
                             label = "Reading date",
                             date = date,
                             onDateChange = { date = it },
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            OutlinedTextField(
-                                value = previous,
-                                onValueChange = {},
-                                label = { Text("Previous (auto)") },
-                                singleLine = true,
-                                readOnly = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            OutlinedTextField(
-                                value = current,
-                                onValueChange = { current = it },
-                                label = { Text("Current") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                        OutlinedTextField(
+                            value = previous,
+                            onValueChange = {},
+                            label = { Text("Previous (auto)") },
+                            singleLine = true,
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = current,
+                            onValueChange = { current = it },
+                            label = { Text("Current reading") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         OutlinedTextField(
                             value = rate,
                             onValueChange = { rate = it },
                             label = { Text("Rate per unit (₹)") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         if (previewUnits != null) {
@@ -229,17 +242,27 @@ fun ElectricityScreen(
                                     else -> null
                                 }
                                 if (error == null) {
+                                    saving = true
                                     viewModel.addReading(
                                         roomId = roomId!!,
                                         date = date,
                                         previous = prev!!,
                                         current = curr!!,
                                         rate = parsedRate!!,
-                                    )
+                                    ) { ok ->
+                                        saving = false
+                                        if (ok) {
+                                            current = ""
+                                        } else {
+                                            error = "Could not save the reading. Please try again."
+                                        }
+                                    }
                                 }
                             },
+                            enabled = !saving,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Save reading")
+                            Text(if (saving) "Saving…" else "Save reading")
                         }
                     }
                 }
@@ -255,14 +278,17 @@ fun ElectricityScreen(
             if (state.readings.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.ElectricBolt,
+                        icon = HrmIcons.Electricity,
                         title = "No readings",
                         message = "Saved meter readings will be listed here with units and charges.",
                     )
                 }
             } else {
                 items(state.readings, key = { it.id }) { reading ->
-                    OutlinedCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(

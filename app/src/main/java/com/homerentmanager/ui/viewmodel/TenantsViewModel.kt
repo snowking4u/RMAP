@@ -32,13 +32,20 @@ class TenantsViewModel(private val container: AppContainer) : HrmViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TenantsUiState())
 
-    fun createTenant(draft: TenantRepository.TenantDraft, tenancy: TenantRepository.NewTenancy?) =
-        runAction {
-            container.tenantRepository.createTenant(draft, tenancy)
-            notify("Tenant saved")
-        }
+    fun createTenant(
+        draft: TenantRepository.TenantDraft,
+        tenancy: TenantRepository.NewTenancy?,
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
+        container.tenantRepository.createTenant(draft, tenancy)
+        notify("Tenant saved")
+    }
 
-    fun updateTenant(tenantId: UUID, draft: TenantRepository.TenantDraft) = runAction {
+    fun updateTenant(
+        tenantId: UUID,
+        draft: TenantRepository.TenantDraft,
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         container.tenantRepository.updateTenant(tenantId, draft)
         notify("Tenant updated")
     }
@@ -71,10 +78,11 @@ class TenantDetailViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TenantDetailUiState())
 
-    fun updateTenant(draft: TenantRepository.TenantDraft) = runAction {
-        container.tenantRepository.updateTenant(tenantId, draft)
-        notify("Tenant updated")
-    }
+    fun updateTenant(draft: TenantRepository.TenantDraft, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.tenantRepository.updateTenant(tenantId, draft)
+            notify("Tenant updated")
+        }
 
     fun startTenancy(
         roomId: UUID,
@@ -82,7 +90,8 @@ class TenantDetailViewModel(
         depositPaise: Long,
         joinDate: LocalDate,
         notes: String,
-    ) = runAction {
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         container.tenantRepository.startTenancy(
             tenantId,
             TenantRepository.NewTenancy(roomId, rentPaise, depositPaise, joinDate, notes),
@@ -90,8 +99,9 @@ class TenantDetailViewModel(
         notify("Tenancy started")
     }
 
-    fun endTenancy(tenancyId: UUID, leaveDate: LocalDate) = runAction {
-        container.tenantRepository.endTenancy(tenancyId, leaveDate)
-        notify("Tenancy ended. Bills remain linked to this tenancy.")
-    }
+    fun endTenancy(tenancyId: UUID, leaveDate: LocalDate, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.tenantRepository.endTenancy(tenancyId, leaveDate)
+            notify("Tenancy ended. Bills remain linked to this tenancy.")
+        }
 }

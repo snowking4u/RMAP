@@ -71,9 +71,15 @@ class BackupViewModel(private val container: AppContainer) : HrmViewModel() {
         }
     }
 
-    fun createBackup(destination: Uri, password: CharArray, displayName: String) {
+    fun createBackup(
+        destination: Uri,
+        password: CharArray,
+        displayName: String,
+        onResult: (Boolean) -> Unit = {},
+    ) {
         if (password.size < 8) {
             notify("Recovery password must be at least 8 characters")
+            onResult(false)
             return
         }
         if (busy.value) return
@@ -83,8 +89,10 @@ class BackupViewModel(private val container: AppContainer) : HrmViewModel() {
                 val result = container.backupManager.createBackup(destination, password, displayName)
                 notify("Encrypted backup saved: ${result.fileName}")
                 refreshAutoInfo()
+                onResult(true)
             } catch (e: Exception) {
                 notify(friendlyMessage(e))
+                onResult(false)
             } finally {
                 password.fill('\u0000')
                 busy.value = false
@@ -92,7 +100,7 @@ class BackupViewModel(private val container: AppContainer) : HrmViewModel() {
         }
     }
 
-    fun validate(source: Uri, password: CharArray) {
+    fun validate(source: Uri, password: CharArray, onResult: (Boolean) -> Unit = {}) {
         if (busy.value) return
         validation.value = ValidationState.Validating
         viewModelScope.launch {
@@ -100,19 +108,22 @@ class BackupViewModel(private val container: AppContainer) : HrmViewModel() {
                 val result = container.backupManager.validateBackup(source, password)
                 validation.value = ValidationState.Valid(result)
                 notify("Backup validated successfully. Review the summary before restoring.")
+                onResult(true)
             } catch (e: Exception) {
                 validation.value = ValidationState.Invalid(friendlyMessage(e))
                 notify(friendlyMessage(e))
+                onResult(false)
             } finally {
                 password.fill('\u0000')
             }
         }
     }
 
-    fun restore() {
+    fun restore(onResult: (Boolean) -> Unit = {}) {
         val valid = (validation.value as? ValidationState.Valid)?.backup
         if (valid == null) {
             notify("Validate a backup before restoring")
+            onResult(false)
             return
         }
         if (busy.value) return
@@ -124,8 +135,10 @@ class BackupViewModel(private val container: AppContainer) : HrmViewModel() {
                 restoreResult.value = result
                 notify("Restore completed successfully")
                 refreshAutoInfo()
+                onResult(true)
             } catch (e: Exception) {
                 notify(friendlyMessage(e))
+                onResult(false)
             } finally {
                 busy.value = false
             }

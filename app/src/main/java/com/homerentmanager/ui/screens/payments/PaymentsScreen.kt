@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,17 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Print
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,11 +36,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.MonthSwitcher
-import com.homerentmanager.ui.components.StatCard
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.PaymentsViewModel
 import com.homerentmanager.util.PdfActions
@@ -109,7 +105,7 @@ fun PaymentsScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
@@ -142,18 +138,27 @@ fun PaymentsScreen(
                 }
             }
             item {
-                StatCard(
-                    label = "Total received",
-                    value = state.totalPaise.toRupeesNoDecimals(),
-                    supporting = state.monthFilter?.let { "In ${monthLabel(it)}" } ?: "All time",
-                    modifier = Modifier.fillMaxWidth(),
+                StatGrid(
+                    specs = listOf(
+                        StatSpec(
+                            label = "Total received",
+                            value = state.totalPaise.toRupeesNoDecimals(),
+                            supporting = state.monthFilter?.let { "In ${monthLabel(it)}" }
+                                ?: "All time",
+                        ),
+                        StatSpec(
+                            label = "Payments",
+                            value = state.payments.size.toString(),
+                            supporting = "Matching the current filter",
+                        ),
+                    ),
                 )
             }
 
             if (state.payments.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.Payments,
+                        icon = HrmIcons.Payments,
                         title = "No payments recorded",
                         message = "Payments recorded against any bill will be listed here with receipts.",
                     )
@@ -164,7 +169,9 @@ fun PaymentsScreen(
                     Card(
                         onClick = { onOpenBill(payment.bill.id) },
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -198,8 +205,13 @@ fun PaymentsScreen(
                                     payment.bill.billNumber,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
                                 )
-                                Spacer(Modifier.weight(1f))
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
                                 IconButton(
                                     onClick = {
                                         receiptSaveId = payment.payment.id
@@ -208,13 +220,13 @@ fun PaymentsScreen(
                                         )
                                     },
                                 ) {
-                                    Icon(Icons.Outlined.Download, contentDescription = "Save receipt")
+                                    Icon(HrmIcons.DownloadPdf, contentDescription = "Save receipt")
                                 }
                                 IconButton(onClick = { shareReceipt(payment.payment.id) }) {
-                                    Icon(Icons.Outlined.Share, contentDescription = "Share receipt")
+                                    Icon(HrmIcons.Share, contentDescription = "Share receipt")
                                 }
                                 IconButton(onClick = { printReceipt(payment.payment.id) }) {
-                                    Icon(Icons.Outlined.Print, contentDescription = "Print receipt")
+                                    Icon(HrmIcons.Print, contentDescription = "Print receipt")
                                 }
                             }
                         }

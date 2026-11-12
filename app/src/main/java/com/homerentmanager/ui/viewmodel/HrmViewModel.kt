@@ -23,13 +23,23 @@ abstract class HrmViewModel : ViewModel() {
     }
 
     protected fun runAction(block: suspend () -> Unit) {
+        runActionWithResult(onResult = {}, block = block)
+    }
+
+    /** Runs an action and reports success so forms can stay open and keep values on failure. */
+    protected fun runActionWithResult(
+        onResult: (Boolean) -> Unit,
+        block: suspend () -> Unit,
+    ) {
         viewModelScope.launch {
             try {
                 block()
+                onResult(true)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 notify(e.message ?: "Something went wrong. Please try again.")
+                onResult(false)
             }
         }
     }

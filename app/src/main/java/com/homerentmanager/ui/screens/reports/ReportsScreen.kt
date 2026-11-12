@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,15 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.MeetingRoom
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,12 +33,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.backup.BackupManager
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LabeledValue
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.MonthSwitcher
 import com.homerentmanager.ui.components.SectionHeader
-import com.homerentmanager.ui.components.StatCard
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.ReportRoomRow
 import com.homerentmanager.ui.viewmodel.ReportsViewModel
@@ -78,7 +76,7 @@ fun ReportsScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -90,52 +88,42 @@ fun ReportsScreen(
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Billed",
-                        value = state.billedPaise.toRupeesNoDecimals(),
-                        supporting = monthLabel(state.month),
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Collected",
-                        value = state.collectedPaise.toRupeesNoDecimals(),
-                        supporting = "Payments in month",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Month outstanding",
-                        value = state.outstandingMonthPaise.toRupeesNoDecimals(),
-                        supporting = "Unpaid for month",
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Total outstanding",
-                        value = state.outstandingAllPaise.toRupeesNoDecimals(),
-                        supporting = "All unpaid bills",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Occupancy",
-                        value = "${state.occupiedRooms}/${state.totalRooms}",
-                        supporting = "Active tenancies",
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Deposits held",
-                        value = state.activeDepositsPaise.toRupeesNoDecimals(),
-                        supporting = "Active tenancies",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                StatGrid(
+                    specs = listOf(
+                        StatSpec(
+                            label = "Billed",
+                            value = state.billedPaise.toRupeesNoDecimals(),
+                            supporting = monthLabel(state.month),
+                        ),
+                        StatSpec(
+                            label = "Collected",
+                            value = state.collectedPaise.toRupeesNoDecimals(),
+                            supporting = "Payments in month",
+                        ),
+                        StatSpec(
+                            label = "Month outstanding",
+                            value = state.outstandingMonthPaise.toRupeesNoDecimals(),
+                            supporting = "Unpaid for month",
+                            accent = MaterialTheme.colorScheme.error,
+                        ),
+                        StatSpec(
+                            label = "Total outstanding",
+                            value = state.outstandingAllPaise.toRupeesNoDecimals(),
+                            supporting = "All unpaid bills",
+                            accent = MaterialTheme.colorScheme.error,
+                        ),
+                        StatSpec(
+                            label = "Occupancy",
+                            value = "${state.occupiedRooms}/${state.totalRooms}",
+                            supporting = "Active tenancies",
+                        ),
+                        StatSpec(
+                            label = "Deposits held",
+                            value = state.activeDepositsPaise.toRupeesNoDecimals(),
+                            supporting = "Active tenancies",
+                        ),
+                    ),
+                )
             }
 
             item {
@@ -143,11 +131,24 @@ fun ReportsScreen(
                     Column(Modifier.padding(16.dp)) {
                         SectionHeader(title = "Outstanding ageing")
                         LabeledValue("Not due yet", state.aging.notDuePaise.toRupeesNoDecimals())
-                        LabeledValue("1–30 days overdue", state.aging.days1To30Paise.toRupeesNoDecimals())
-                        LabeledValue("31–60 days overdue", state.aging.days31To60Paise.toRupeesNoDecimals())
-                        LabeledValue("61+ days overdue", state.aging.days61PlusPaise.toRupeesNoDecimals())
+                        LabeledValue(
+                            "1–30 days overdue",
+                            state.aging.days1To30Paise.toRupeesNoDecimals(),
+                        )
+                        LabeledValue(
+                            "31–60 days overdue",
+                            state.aging.days31To60Paise.toRupeesNoDecimals(),
+                        )
+                        LabeledValue(
+                            "61+ days overdue",
+                            state.aging.days61PlusPaise.toRupeesNoDecimals(),
+                        )
                         Spacer(Modifier.height(4.dp))
-                        LabeledValue("Total", state.aging.totalPaise.toRupeesNoDecimals(), emphasize = true)
+                        LabeledValue(
+                            "Total",
+                            state.aging.totalPaise.toRupeesNoDecimals(),
+                            emphasize = true,
+                        )
                     }
                 }
             }
@@ -161,14 +162,17 @@ fun ReportsScreen(
             if (state.methodRows.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.MeetingRoom,
+                        icon = HrmIcons.Payments,
                         title = "No payments this month",
                         message = "Method breakdown appears once payments are recorded.",
                     )
                 }
             } else {
                 items(state.methodRows, key = { it.method.name }) { row ->
-                    OutlinedCard(shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 row.method.label(),
@@ -192,35 +196,17 @@ fun ReportsScreen(
             }
 
             item { SectionHeader(title = "Export CSV") }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BackupManager.CsvKind.entries.forEach { kind ->
-                        TextButton(
-                            onClick = {
-                                pendingCsv = kind
-                                csvLauncher.launch("${kind.fileStem}.csv")
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(Icons.Outlined.Download, contentDescription = null)
-                            Spacer(Modifier.width(3.dp))
-                            Text(kind.label, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-            }
-
-            item {
-                Button(
+            items(BackupManager.CsvKind.entries, key = { it.name }) { kind ->
+                OutlinedButton(
                     onClick = {
-                        pendingCsv = BackupManager.CsvKind.BILLS
-                        csvLauncher.launch("rent-bills.csv")
+                        pendingCsv = kind
+                        csvLauncher.launch("${kind.fileStem}.csv")
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null)
+                    Icon(HrmIcons.DownloadPdf, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Export all bills")
+                    Text("Export ${kind.label}")
                 }
             }
 
@@ -245,18 +231,21 @@ private fun RoomReportRow(row: ReportRoomRow) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (row.occupied) row.tenantName else "Vacant",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
+            Text(
+                if (row.occupied) row.tenantName else "Vacant",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(6.dp))
             Row {
                 MiniStat("Billed", row.billedPaise.toRupeesNoDecimals(), Modifier.weight(1f))
                 MiniStat("Collected", row.collectedPaise.toRupeesNoDecimals(), Modifier.weight(1f))
-                MiniStat("Outstanding", row.outstandingPaise.toRupeesNoDecimals(), Modifier.weight(1f))
+                MiniStat(
+                    "Outstanding",
+                    row.outstandingPaise.toRupeesNoDecimals(),
+                    Modifier.weight(1f),
+                )
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.homerentmanager.ui.screens.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,20 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Backup
-import androidx.compose.material.icons.outlined.ElectricBolt
-import androidx.compose.material.icons.outlined.MeetingRoom
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,24 +22,27 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
 import com.homerentmanager.data.model.PaymentWithDetails
 import com.homerentmanager.ui.Routes
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
+import com.homerentmanager.ui.components.QuickActionGrid
+import com.homerentmanager.ui.components.QuickActionSpec
 import com.homerentmanager.ui.components.SectionHeader
-import com.homerentmanager.ui.components.StatCard
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
 import com.homerentmanager.ui.components.StatusChip
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.DashboardViewModel
 import com.homerentmanager.util.formatDisplay
@@ -82,7 +76,7 @@ fun DashboardScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -104,88 +98,59 @@ fun DashboardScreen(
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Occupied rooms",
-                        value = "${state.occupiedRooms}/${state.totalRooms}",
-                        icon = Icons.Outlined.MeetingRoom,
-                        supporting = if (state.occupiedRooms == state.totalRooms) "All rooms occupied" else
-                            "${state.totalRooms - state.occupiedRooms} vacant",
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.ROOMS) },
-                    )
-                    StatCard(
-                        label = "Active tenants",
-                        value = state.activeTenants.toString(),
-                        icon = Icons.Outlined.People,
-                        supporting = "Currently living",
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.TENANTS) },
-                    )
-                }
-            }
-
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard(
-                        label = "Collected this month",
-                        value = state.collectedPaise.toRupeesNoDecimals(),
-                        icon = Icons.Outlined.Payments,
-                        accent = MaterialTheme.colorScheme.tertiary,
-                        supporting = "Payments received",
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.PAYMENTS) },
-                    )
-                    StatCard(
-                        label = "Outstanding total",
-                        value = state.outstandingTotalPaise.toRupeesNoDecimals(),
-                        icon = Icons.Outlined.WarningAmber,
-                        accent = MaterialTheme.colorScheme.error,
-                        supporting = "Carry forward ${state.carryForwardPaise.toRupeesNoDecimals()}",
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.BILLING) },
-                    )
-                }
-            }
-
-            item {
-                SectionHeader(
-                    title = "Quick actions",
+                StatGrid(
+                    specs = listOf(
+                        StatSpec(
+                            label = "Occupied rooms",
+                            value = "${state.occupiedRooms}/${state.totalRooms}",
+                            icon = HrmIcons.Rooms,
+                            supporting = if (state.occupiedRooms == state.totalRooms) {
+                                "All rooms occupied"
+                            } else {
+                                "${state.totalRooms - state.occupiedRooms} vacant"
+                            },
+                            onClick = { onNavigate(Routes.ROOMS) },
+                        ),
+                        StatSpec(
+                            label = "Active tenants",
+                            value = state.activeTenants.toString(),
+                            icon = HrmIcons.Tenants,
+                            supporting = "Currently living",
+                            onClick = { onNavigate(Routes.TENANTS) },
+                        ),
+                        StatSpec(
+                            label = "Collected this month",
+                            value = state.collectedPaise.toRupeesNoDecimals(),
+                            icon = HrmIcons.Payments,
+                            accent = MaterialTheme.colorScheme.tertiary,
+                            supporting = "Payments received",
+                            onClick = { onNavigate(Routes.PAYMENTS) },
+                        ),
+                        StatSpec(
+                            label = "Outstanding total",
+                            value = state.outstandingTotalPaise.toRupeesNoDecimals(),
+                            icon = HrmIcons.Billing,
+                            accent = MaterialTheme.colorScheme.error,
+                            supporting = "Carry forward ${state.carryForwardPaise.toRupeesNoDecimals()}",
+                            onClick = { onNavigate(Routes.BILLING) },
+                        ),
+                    ),
                 )
             }
 
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    QuickAction(
-                        label = "Billing",
-                        icon = Icons.Outlined.ReceiptLong,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.BILLING) },
-                    )
-                    QuickAction(
-                        label = "Electricity",
-                        icon = Icons.Outlined.ElectricBolt,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.ELECTRICITY) },
-                    )
-                }
-            }
+            item { SectionHeader(title = "Quick actions") }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    QuickAction(
-                        label = "Reports",
-                        icon = Icons.Outlined.Schedule,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.REPORTS) },
-                    )
-                    QuickAction(
-                        label = "Backup",
-                        icon = Icons.Outlined.Backup,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate(Routes.BACKUP) },
-                    )
-                }
+                QuickActionGrid(
+                    actions = listOf(
+                        QuickActionSpec("Billing", HrmIcons.Billing) { onNavigate(Routes.BILLING) },
+                        QuickActionSpec("Electricity", HrmIcons.Electricity) {
+                            onNavigate(Routes.ELECTRICITY)
+                        },
+                        QuickActionSpec("Reports", HrmIcons.Reports) { onNavigate(Routes.REPORTS) },
+                        QuickActionSpec("Backup", HrmIcons.Backup) { onNavigate(Routes.BACKUP) },
+                    ),
+                )
             }
 
             item {
@@ -208,7 +173,7 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                Icons.Outlined.Schedule,
+                                HrmIcons.Billing,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                             )
@@ -237,7 +202,7 @@ fun DashboardScreen(
             if (state.recentPayments.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.Payments,
+                        icon = HrmIcons.Payments,
                         title = "No payments yet",
                         message = "Record a payment from any bill to see it here.",
                     )
@@ -259,7 +224,7 @@ fun DashboardScreen(
             if (state.recentBills.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.ReceiptLong,
+                        icon = HrmIcons.Billing,
                         title = "No bills for ${monthLabel(state.month)}",
                         message = "Generate monthly bills from the Billing screen.",
                         actionLabel = "Generate bills",
@@ -322,8 +287,8 @@ private fun CollectionHero(
                 Text(
                     "Outstanding ${outstanding.toRupeesNoDecimals()}",
                     style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.weight(1f))
                 Text(
                     "${(fraction * 100).toInt()}% collected",
                     style = MaterialTheme.typography.labelMedium,
@@ -343,57 +308,45 @@ private fun BackupReminderCard(lastBackup: String, onClick: () -> Unit) {
         ),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Outlined.Backup,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Backup recommended",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
-                Text(
-                    "Last manual backup: $lastBackup. Create an encrypted backup to Google Drive.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
+        BoxWithConstraints {
+            if (maxWidth < 380.dp) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BackupReminderText(lastBackup)
+                    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text("Backup now") }
+                }
+            } else {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        HrmIcons.Backup,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        BackupReminderText(lastBackup)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = onClick) { Text("Backup") }
+                }
             }
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = onClick) { Text("Backup") }
         }
     }
 }
 
 @Composable
-private fun QuickAction(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    OutlinedCard(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            Modifier.padding(vertical = 14.dp, horizontal = 6.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+private fun BackupReminderText(lastBackup: String) {
+    Column {
+        Text(
+            "Backup recommended",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        Text(
+            "Last manual backup: $lastBackup. Create an encrypted backup to Google Drive.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
     }
 }
 
@@ -416,6 +369,7 @@ private fun OverdueRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     (detail.bill.totalPaise - detail.bill.paidPaise).toRupeesNoDecimals(),
@@ -445,6 +399,7 @@ private fun PaymentRow(payment: PaymentWithDetails, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(8.dp))
             Text(
                 payment.payment.amountPaise.toRupees(),
                 style = MaterialTheme.typography.titleSmall,
@@ -474,6 +429,7 @@ private fun BillRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     detail.bill.totalPaise.toRupeesNoDecimals(),
@@ -485,3 +441,4 @@ private fun BillRow(
         }
     }
 }
+

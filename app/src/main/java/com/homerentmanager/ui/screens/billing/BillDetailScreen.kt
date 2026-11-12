@@ -6,7 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,18 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Print
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -52,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
@@ -60,11 +54,14 @@ import com.homerentmanager.data.model.BillWithDetails
 import com.homerentmanager.ui.components.DateField
 import com.homerentmanager.ui.components.DetailRow
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmDialog
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LabeledValue
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SectionHeader
 import com.homerentmanager.ui.components.StatusChip
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.BillDetailViewModel
 import com.homerentmanager.util.PdfActions
@@ -72,7 +69,6 @@ import com.homerentmanager.util.formatDisplay
 import com.homerentmanager.util.formatUnits
 import com.homerentmanager.util.label
 import com.homerentmanager.util.monthLabel
-import com.homerentmanager.util.parseDecimal
 import com.homerentmanager.util.parseMoneyToPaise
 import com.homerentmanager.util.toRupees
 import com.homerentmanager.util.toRupeesNoDecimals
@@ -80,6 +76,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BillDetailScreen(
     container: AppContainer,
@@ -152,7 +149,7 @@ fun BillDetailScreen(
         val detail = state.detail
         if (detail == null) {
             EmptyState(
-                icon = Icons.Outlined.ReceiptLong,
+                icon = HrmIcons.Billing,
                 title = "Bill not found",
                 message = "This bill may no longer be available.",
                 modifier = Modifier.padding(padding),
@@ -164,12 +161,15 @@ fun BillDetailScreen(
 
         val bill = detail.bill
         val outstanding = (bill.totalPaise - bill.paidPaise).coerceAtLeast(0)
-        val fraction = if (bill.totalPaise <= 0) 0f else
+        val fraction = if (bill.totalPaise <= 0) {
+            0f
+        } else {
             (bill.paidPaise.toFloat() / bill.totalPaise).coerceIn(0f, 1f)
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -231,17 +231,17 @@ fun BillDetailScreen(
                         },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Icon(Icons.Outlined.Download, contentDescription = null)
+                        Icon(HrmIcons.DownloadPdf, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Save")
                     }
                     OutlinedButton(onClick = { shareInvoice() }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Share, contentDescription = null)
+                        Icon(HrmIcons.Share, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Share")
                     }
                     OutlinedButton(onClick = { printInvoice() }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Print, contentDescription = null)
+                        Icon(HrmIcons.Print, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Print")
                     }
@@ -251,15 +251,11 @@ fun BillDetailScreen(
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Room ${detail.room.roomNumber}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { onOpenRoom(detail.room.id) }) { Text("Open room") }
-                        }
+                        Text(
+                            "Room ${detail.room.roomNumber}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                         Text(
                             detail.tenant.name,
                             style = MaterialTheme.typography.bodyLarge,
@@ -270,9 +266,16 @@ fun BillDetailScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(8.dp))
-                        TextButton(onClick = { onOpenTenant(detail.tenant.id) }) {
-                            Text("Open tenant profile")
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            TextButton(onClick = { onOpenRoom(detail.room.id) }) {
+                                Text("Open room")
+                            }
+                            TextButton(onClick = { onOpenTenant(detail.tenant.id) }) {
+                                Text("Open tenant profile")
+                            }
                         }
                         DetailRow("Bill date", bill.billDate.formatDisplay())
                         DetailRow("Due date", bill.dueDate.formatDisplay())
@@ -283,7 +286,10 @@ fun BillDetailScreen(
 
             item {
                 OutlinedCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         SectionHeader(title = "Charges")
                         LabeledValue("Rent", bill.rentPaise.toRupees())
                         if (bill.electricityUnits > 0 || bill.electricityAmountPaise > 0) {
@@ -338,7 +344,7 @@ fun BillDetailScreen(
                         onClick = { paymentOpen = true },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Icon(HrmIcons.Payments, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
                         Text("Record payment")
                     }
@@ -357,34 +363,45 @@ fun BillDetailScreen(
             if (state.payments.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.Payments,
+                        icon = HrmIcons.Payments,
                         title = "No payments recorded",
                         message = "Record a partial or full payment to update this bill automatically.",
                     )
                 }
             } else {
                 items(state.payments, key = { it.payment.id }) { payment ->
-                    OutlinedCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Column(Modifier.padding(13.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        payment.payment.amountPaise.toRupees(),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(
-                                        "${payment.payment.paidAt.formatDisplay()} · " +
-                                            payment.payment.method.label(),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        "Receipt ${payment.payment.receiptNumber}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                            Text(
+                                payment.payment.amountPaise.toRupees(),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                "${payment.payment.paidAt.formatDisplay()} · " +
+                                    payment.payment.method.label(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Receipt ${payment.payment.receiptNumber}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (payment.payment.reference.isNotBlank()) {
+                                Text(
+                                    "Ref: ${payment.payment.reference}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
                                 IconButton(
                                     onClick = {
                                         receiptSaveId = payment.payment.id
@@ -393,21 +410,17 @@ fun BillDetailScreen(
                                         )
                                     },
                                 ) {
-                                    Icon(Icons.Outlined.Download, contentDescription = "Save receipt")
+                                    Icon(
+                                        HrmIcons.DownloadPdf,
+                                        contentDescription = "Save receipt",
+                                    )
                                 }
                                 IconButton(onClick = { shareReceipt(payment.payment.id) }) {
-                                    Icon(Icons.Outlined.Share, contentDescription = "Share receipt")
+                                    Icon(HrmIcons.Share, contentDescription = "Share receipt")
                                 }
                                 IconButton(onClick = { printReceipt(payment.payment.id) }) {
-                                    Icon(Icons.Outlined.Print, contentDescription = "Print receipt")
+                                    Icon(HrmIcons.Print, contentDescription = "Print receipt")
                                 }
-                            }
-                            if (payment.payment.reference.isNotBlank()) {
-                                Text(
-                                    "Ref: ${payment.payment.reference}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                             }
                         }
                     }
@@ -422,35 +435,28 @@ fun BillDetailScreen(
         RecordPaymentDialog(
             detail = state.detail!!,
             onDismiss = { paymentOpen = false },
-            onRecord = { amount, date, method, reference, notes ->
-                viewModel.recordPayment(amount, date, method, reference, notes)
-                paymentOpen = false
+            onRecord = { amount, date, method, reference, notes, onResult ->
+                viewModel.recordPayment(amount, date, method, reference, notes, onResult)
             },
         )
     }
 
     state.lastPaymentId?.let { id ->
-        AlertDialog(
-            onDismissRequest = viewModel::clearLastPayment,
-            title = { Text("Payment recorded") },
-            text = {
-                Text(
-                    "The bill balance has been updated. You can now save, share or print the receipt.",
-                )
+        HrmDialog(
+            title = "Payment recorded",
+            confirmLabel = "Save receipt",
+            onDismiss = viewModel::clearLastPayment,
+            onConfirm = {
+                receiptSaveId = id
+                saveReceiptLauncher.launch("Receipt.pdf")
+                viewModel.clearLastPayment()
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        receiptSaveId = id
-                        saveReceiptLauncher.launch("Receipt.pdf")
-                        viewModel.clearLastPayment()
-                    },
-                ) { Text("Save receipt") }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::clearLastPayment) { Text("Close") }
-            },
-        )
+        ) {
+            Text(
+                "The bill balance has been updated. You can now save, share or print the receipt.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
 
@@ -458,7 +464,7 @@ fun BillDetailScreen(
 private fun RecordPaymentDialog(
     detail: BillWithDetails,
     onDismiss: () -> Unit,
-    onRecord: (Long, LocalDate, PaymentMethod, String, String) -> Unit,
+    onRecord: (Long, LocalDate, PaymentMethod, String, String, (Boolean) -> Unit) -> Unit,
 ) {
     val outstanding = (detail.bill.totalPaise - detail.bill.paidPaise).coerceAtLeast(0)
     var amount by remember { mutableStateOf((outstanding / 100.0).toString()) }
@@ -468,81 +474,84 @@ private fun RecordPaymentDialog(
     var notes by remember { mutableStateOf("") }
     var methodMenu by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Record payment") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                Text(
-                    "Outstanding ${outstanding.toRupees()} for room " +
-                        detail.room.roomNumber,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount (₹)") },
-                    singleLine = true,
-                )
-                DateField(
-                    label = "Payment date",
-                    date = date,
-                    onDateChange = { date = it },
-                )
-                Box {
-                    OutlinedButton(onClick = { methodMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Method: ${method.label()}", modifier = Modifier.weight(1f))
-                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+    HrmDialog(
+        title = "Record payment",
+        confirmLabel = "Record",
+        onDismiss = onDismiss,
+        busy = saving,
+        onConfirm = {
+            val parsed = parseMoneyToPaise(amount)
+            error = when {
+                parsed == null || parsed <= 0 -> "Enter a valid amount"
+                parsed > outstanding -> "Amount cannot exceed the outstanding balance"
+                else -> null
+            }
+            if (error == null) {
+                saving = true
+                onRecord(parsed!!, date, method, reference, notes) { ok ->
+                    saving = false
+                    if (ok) {
+                        onDismiss()
+                    } else {
+                        error = "Could not record the payment. Please try again."
                     }
-                    DropdownMenu(expanded = methodMenu, onDismissRequest = { methodMenu = false }) {
-                        PaymentMethod.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option.label()) },
-                                onClick = {
-                                    method = option
-                                    methodMenu = false
-                                },
-                            )
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = reference,
-                    onValueChange = { reference = it },
-                    label = { Text("Reference / transaction id") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes") },
-                    minLines = 2,
-                )
-                if (error != null) {
-                    Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val parsed = parseMoneyToPaise(amount)
-                    error = when {
-                        parsed == null || parsed <= 0 -> "Enter a valid amount"
-                        parsed > outstanding -> "Amount cannot exceed the outstanding balance"
-                        else -> null
-                    }
-                    if (error == null) {
-                        onRecord(parsed!!, date, method, reference, notes)
-                    }
-                },
-            ) { Text("Record") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        Text(
+            "Outstanding ${outstanding.toRupees()} for room ${detail.room.roomNumber}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = amount,
+            onValueChange = { amount = it },
+            label = { Text("Amount (₹)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DateField(
+            label = "Payment date",
+            date = date,
+            onDateChange = { date = it },
+        )
+        Box {
+            OutlinedButton(onClick = { methodMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Method: ${method.label()}", modifier = Modifier.weight(1f))
+                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = methodMenu, onDismissRequest = { methodMenu = false }) {
+                PaymentMethod.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label()) },
+                        onClick = {
+                            method = option
+                            methodMenu = false
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = reference,
+            onValueChange = { reference = it },
+            label = { Text("Reference / transaction id") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Notes") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (error != null) {
+            Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+        }
+    }
 }

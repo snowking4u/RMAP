@@ -79,7 +79,8 @@ class ElectricityViewModel(private val container: AppContainer) : HrmViewModel()
         previous: Double,
         current: Double,
         rate: Double,
-    ) = runAction {
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         container.electricityRepository.addReading(roomId, date, previous, current, rate)
         savedAt.value = System.currentTimeMillis()
         notify("Meter reading saved. Billing history is preserved.")

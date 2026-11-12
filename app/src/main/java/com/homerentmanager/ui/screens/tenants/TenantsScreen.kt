@@ -14,16 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -34,10 +28,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
@@ -54,18 +47,21 @@ import com.homerentmanager.data.model.TenantSummary
 import com.homerentmanager.data.repository.TenantRepository
 import com.homerentmanager.ui.components.DateField
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmDialog
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SearchBox
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.viewmodel.TenantsViewModel
+import com.homerentmanager.util.Validators
 import com.homerentmanager.util.formatDisplayOrDash
 import com.homerentmanager.util.label
 import com.homerentmanager.util.parseMoneyToPaise
 import com.homerentmanager.util.toRupeesNoDecimals
 import java.time.LocalDate
-import java.time.ZoneId
 import java.util.UUID
 
 @Composable
@@ -87,7 +83,7 @@ fun TenantsScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { addOpen = true },
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                icon = { Icon(HrmIcons.Tenants, contentDescription = null) },
                 text = { Text("Add tenant") },
             )
         },
@@ -104,7 +100,7 @@ fun TenantsScreen(
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
@@ -117,7 +113,7 @@ fun TenantsScreen(
             if (filtered.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.People,
+                        icon = HrmIcons.Tenants,
                         title = if (state.tenants.isEmpty()) "No tenants yet" else "No matches",
                         message = if (state.tenants.isEmpty()) {
                             "Register a tenant and assign one of the vacant rooms."
@@ -145,9 +141,8 @@ fun TenantsScreen(
         AddTenantDialog(
             vacantRooms = state.vacantRooms.map { it.room },
             onDismiss = { addOpen = false },
-            onCreate = { draft, tenancy ->
-                viewModel.createTenant(draft, tenancy)
-                addOpen = false
+            onCreate = { draft, tenancy, onResult ->
+                viewModel.createTenant(draft, tenancy, onResult)
             },
         )
     }
@@ -174,7 +169,7 @@ private fun TenantCard(summary: TenantSummary, onClick: () -> Unit) {
                 ),
             ) {
                 Icon(
-                    Icons.Outlined.Person,
+                    HrmIcons.Tenants,
                     contentDescription = null,
                     modifier = Modifier.padding(9.dp),
                     tint = MaterialTheme.colorScheme.primary,
@@ -207,6 +202,7 @@ private fun TenantCard(summary: TenantSummary, onClick: () -> Unit) {
                     )
                 }
             }
+            Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Tag(
                     text = if (summary.activeTenancyId != null) "Active" else "Past",
@@ -238,7 +234,11 @@ private fun TenantCard(summary: TenantSummary, onClick: () -> Unit) {
 fun AddTenantDialog(
     vacantRooms: List<com.homerentmanager.data.entity.RoomEntity>,
     onDismiss: () -> Unit,
-    onCreate: (TenantRepository.TenantDraft, TenantRepository.NewTenancy?) -> Unit,
+    onCreate: (
+        TenantRepository.TenantDraft,
+        TenantRepository.NewTenancy?,
+        (Boolean) -> Unit,
+    ) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf("") }
@@ -255,174 +255,184 @@ fun AddTenantDialog(
     var deposit by remember { mutableStateOf("0") }
     var joinDate by remember { mutableStateOf(LocalDate.now()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add tenant") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Full name *") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it },
-                    label = { Text("Mobile (10 digits)") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = alternateMobile,
-                    onValueChange = { alternateMobile = it },
-                    label = { Text("Alternate mobile") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Address") },
-                    minLines = 2,
-                )
-                Box {
-                    OutlinedButton(onClick = { idMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("ID: ${idType.label()}", modifier = Modifier.weight(1f))
-                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = idMenu, onDismissRequest = { idMenu = false }) {
-                        IdType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label()) },
-                                onClick = {
-                                    idType = type
-                                    idMenu = false
-                                },
-                            )
-                        }
-                    }
-                }
-                if (idType != IdType.NONE) {
-                    OutlinedTextField(
-                        value = idNumber,
-                        onValueChange = { idNumber = it },
-                        label = { Text("ID number") },
-                        singleLine = true,
+    HrmDialog(
+        title = "Add tenant",
+        confirmLabel = "Save tenant",
+        onDismiss = onDismiss,
+        busy = saving,
+        onConfirm = {
+            val draft = TenantRepository.TenantDraft(
+                name = name,
+                mobile = mobile,
+                alternateMobile = alternateMobile,
+                address = address,
+                idType = idType,
+                idNumber = idNumber,
+                notes = notes,
+            )
+            val rentPaise = parseMoneyToPaise(rent)
+            val depositPaise = parseMoneyToPaise(deposit) ?: 0L
+            error = when {
+                name.trim().length < 2 -> "Enter the tenant's name"
+                !Validators.isValidMobile(mobile) ->
+                    "Enter a valid 10-digit mobile number or leave it blank"
+                !Validators.isValidMobile(alternateMobile) ->
+                    "Enter a valid alternate mobile number or leave it blank"
+                assignRoom && vacantRooms.isEmpty() -> "No vacant room is available"
+                assignRoom && selectedRoomId == null -> "Select a room"
+                assignRoom && (rentPaise == null || rentPaise <= 0) ->
+                    "Enter a valid monthly rent"
+                assignRoom && depositPaise < 0 -> "Deposit cannot be negative"
+                else -> null
+            }
+            if (error == null) {
+                val tenancy = if (assignRoom) {
+                    TenantRepository.NewTenancy(
+                        roomId = selectedRoomId!!,
+                        monthlyRentPaise = rentPaise!!,
+                        securityDepositPaise = depositPaise,
+                        joinDate = joinDate,
                     )
+                } else {
+                    null
                 }
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes") },
-                    minLines = 2,
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { assignRoom = !assignRoom },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = assignRoom, onCheckedChange = { assignRoom = it })
-                    Text("Assign a room now")
-                }
-
-                if (assignRoom) {
-                    if (vacantRooms.isEmpty()) {
-                        Text(
-                            "All rooms are occupied. End a tenancy first, or save the tenant without a room.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
+                saving = true
+                onCreate(draft, tenancy) { ok ->
+                    saving = false
+                    if (ok) {
+                        onDismiss()
                     } else {
-                        vacantRooms.forEach { room ->
-                            FilterChip(
-                                selected = selectedRoomId == room.id,
-                                onClick = {
-                                    selectedRoomId = room.id
-                                    if (rent.isBlank()) {
-                                        rent = (room.defaultRentPaise / 100.0).toString()
-                                    }
-                                },
-                                label = { Text("Room ${room.roomNumber}") },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
+                        error = "Could not save the tenant. Check the details and try again."
                     }
-                    OutlinedTextField(
-                        value = rent,
-                        onValueChange = { rent = it },
-                        label = { Text("Monthly rent (₹)") },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = deposit,
-                        onValueChange = { deposit = it },
-                        label = { Text("Security deposit (₹)") },
-                        singleLine = true,
-                    )
-                    DateField(
-                        label = "Joining date",
-                        date = joinDate,
-                        onDateChange = { joinDate = it },
-                    )
-                }
-
-                if (error != null) {
-                    Text(
-                        error.orEmpty(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val draft = TenantRepository.TenantDraft(
-                        name = name,
-                        mobile = mobile,
-                        alternateMobile = alternateMobile,
-                        address = address,
-                        idType = idType,
-                        idNumber = idNumber,
-                        notes = notes,
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Full name *") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = mobile,
+            onValueChange = { mobile = it },
+            label = { Text("Mobile (10 digits)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = alternateMobile,
+            onValueChange = { alternateMobile = it },
+            label = { Text("Alternate mobile") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it },
+            label = { Text("Address") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box {
+            OutlinedButton(onClick = { idMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("ID: ${idType.label()}", modifier = Modifier.weight(1f))
+                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = idMenu, onDismissRequest = { idMenu = false }) {
+                IdType.entries.forEach { type ->
+                    DropdownMenuItem(
+                        text = { Text(type.label()) },
+                        onClick = {
+                            idType = type
+                            idMenu = false
+                        },
                     )
-                    if (name.trim().length < 2) {
-                        error = "Enter the tenant's name"
-                        return@TextButton
-                    }
-                    if (!assignRoom) {
-                        onCreate(draft, null)
-                        return@TextButton
-                    }
-                    val roomId = selectedRoomId
-                    val rentPaise = parseMoneyToPaise(rent)
-                    val depositPaise = parseMoneyToPaise(deposit) ?: 0L
-                    if (roomId == null) {
-                        error = "Select a room"
-                    } else if (rentPaise == null || rentPaise <= 0) {
-                        error = "Enter a valid monthly rent"
-                    } else if (depositPaise < 0) {
-                        error = "Deposit cannot be negative"
-                    } else {
-                        onCreate(
-                            draft,
-                            TenantRepository.NewTenancy(
-                                roomId = roomId,
-                                monthlyRentPaise = rentPaise,
-                                securityDepositPaise = depositPaise,
-                                joinDate = joinDate,
-                            ),
-                        )
-                    }
-                },
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+                }
+            }
+        }
+        if (idType != IdType.NONE) {
+            OutlinedTextField(
+                value = idNumber,
+                onValueChange = { idNumber = it },
+                label = { Text("ID number") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Notes") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { assignRoom = !assignRoom },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = assignRoom, onCheckedChange = { assignRoom = it })
+            Text("Assign a room now")
+        }
+
+        if (assignRoom) {
+            if (vacantRooms.isEmpty()) {
+                Text(
+                    "All rooms are occupied. End a tenancy first, or save the tenant without a room.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            } else {
+                vacantRooms.forEach { room ->
+                    FilterChip(
+                        selected = selectedRoomId == room.id,
+                        onClick = {
+                            selectedRoomId = room.id
+                            if (rent.isBlank()) {
+                                rent = (room.defaultRentPaise / 100.0).toString()
+                            }
+                        },
+                        label = { Text("Room ${room.roomNumber}") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = rent,
+                onValueChange = { rent = it },
+                label = { Text("Monthly rent (₹) *") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = deposit,
+                onValueChange = { deposit = it },
+                label = { Text("Security deposit (₹)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DateField(
+                label = "Joining date",
+                date = joinDate,
+                onDateChange = { joinDate = it },
+            )
+        }
+
+        if (error != null) {
+            Text(
+                error.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
 }

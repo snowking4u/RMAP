@@ -29,8 +29,9 @@ class SettingsViewModel(private val container: AppContainer) : HrmViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
-    fun save(settings: SettingsEntity) = runAction {
-        container.settingsRepository.update(settings)
-        notify("Settings saved")
-    }
+    fun save(settings: SettingsEntity, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.settingsRepository.update(settings)
+            notify("Settings saved")
+        }
 }

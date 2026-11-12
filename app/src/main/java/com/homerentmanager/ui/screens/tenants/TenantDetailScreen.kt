@@ -4,7 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,14 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,7 +32,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homerentmanager.AppContainer
@@ -54,15 +51,21 @@ import com.homerentmanager.data.model.TenantSummary
 import com.homerentmanager.data.repository.TenantRepository
 import com.homerentmanager.ui.components.DateField
 import com.homerentmanager.ui.components.EmptyState
+import com.homerentmanager.ui.components.HrmDialog
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.LabeledValue
 import com.homerentmanager.ui.components.LoadingBox
 import com.homerentmanager.ui.components.SectionHeader
+import com.homerentmanager.ui.components.StatGrid
+import com.homerentmanager.ui.components.StatSpec
 import com.homerentmanager.ui.components.StatusChip
 import com.homerentmanager.ui.components.Tag
+import com.homerentmanager.ui.components.hrmPagePadding
 import com.homerentmanager.ui.hrmViewModel
 import com.homerentmanager.ui.screens.rooms.EndTenancyDialog
 import com.homerentmanager.ui.viewmodel.TenantDetailViewModel
+import com.homerentmanager.util.Validators
 import com.homerentmanager.util.formatDisplay
 import com.homerentmanager.util.formatDisplayOrDash
 import com.homerentmanager.util.label
@@ -73,6 +76,7 @@ import com.homerentmanager.util.toRupeesNoDecimals
 import java.time.LocalDate
 import java.util.UUID
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TenantDetailScreen(
     container: AppContainer,
@@ -98,7 +102,7 @@ fun TenantDetailScreen(
         actions = {
             if (summary != null) {
                 IconButton(onClick = { editOpen = true }) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit tenant")
+                    Icon(HrmIcons.EditTenant, contentDescription = "Edit tenant")
                 }
             }
         },
@@ -109,7 +113,7 @@ fun TenantDetailScreen(
         }
         if (summary == null) {
             EmptyState(
-                icon = Icons.Outlined.Person,
+                icon = HrmIcons.Tenants,
                 title = "Tenant not found",
                 message = "This tenant may no longer exist.",
                 modifier = Modifier.padding(padding),
@@ -127,7 +131,7 @@ fun TenantDetailScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
@@ -148,9 +152,15 @@ fun TenantDetailScreen(
                             "Alternate mobile",
                             summary.tenant.alternateMobile.ifBlank { "Not provided" },
                         )
-                        LabeledValue("ID", "${summary.tenant.idType.label()}" +
-                            if (summary.tenant.idNumber.isBlank()) "" else
-                                " · ${summary.tenant.idNumber}")
+                        LabeledValue(
+                            "ID",
+                            "${summary.tenant.idType.label()}" +
+                                if (summary.tenant.idNumber.isBlank()) {
+                                    ""
+                                } else {
+                                    " · ${summary.tenant.idNumber}"
+                                },
+                        )
                         if (summary.tenant.address.isNotBlank()) {
                             LabeledValue("Address", summary.tenant.address)
                         }
@@ -167,18 +177,18 @@ fun TenantDetailScreen(
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TenantStat(
-                        label = "Billed",
-                        value = totalBilled.toRupeesNoDecimals(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    TenantStat(
-                        label = "Outstanding",
-                        value = outstanding.toRupeesNoDecimals(),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                StatGrid(
+                    specs = listOf(
+                        StatSpec("Billed", totalBilled.toRupeesNoDecimals()),
+                        StatSpec(
+                            "Outstanding",
+                            outstanding.toRupeesNoDecimals(),
+                            accent = MaterialTheme.colorScheme.error,
+                        ),
+                        StatSpec("Bills", state.bills.size.toString()),
+                        StatSpec("Tenancies", state.tenancies.size.toString()),
+                    ),
+                )
             }
 
             item {
@@ -201,8 +211,13 @@ fun TenantDetailScreen(
                                 active.tenancy.securityDepositPaise.toRupees(),
                             )
                             Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onOpenRoom(active.room.id) }) { Text("Open room") }
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Button(onClick = { onOpenRoom(active.room.id) }) {
+                                    Text("Open room")
+                                }
                                 OutlinedButton(
                                     onClick = { endTenancyId = active.tenancy.id },
                                 ) { Text("End tenancy") }
@@ -266,7 +281,7 @@ fun TenantDetailScreen(
             if (state.bills.isEmpty()) {
                 item {
                     EmptyState(
-                        icon = Icons.Outlined.Person,
+                        icon = HrmIcons.Billing,
                         title = "No bills yet",
                         message = "Bills issued to this tenant will appear here.",
                     )
@@ -311,10 +326,7 @@ fun TenantDetailScreen(
         EditTenantDialog(
             summary = summary,
             onDismiss = { editOpen = false },
-            onSave = { draft ->
-                viewModel.updateTenant(draft)
-                editOpen = false
-            },
+            onSave = { draft, onResult -> viewModel.updateTenant(draft, onResult) },
         )
     }
 
@@ -322,9 +334,8 @@ fun TenantDetailScreen(
         StartTenancyDialog(
             vacantRooms = state.vacantRooms,
             onDismiss = { startOpen = false },
-            onStart = { roomId, rent, deposit, date, notes ->
-                viewModel.startTenancy(roomId, rent, deposit, date, notes)
-                startOpen = false
+            onStart = { roomId, rent, deposit, date, notes, onResult ->
+                viewModel.startTenancy(roomId, rent, deposit, date, notes, onResult)
             },
         )
     }
@@ -333,29 +344,8 @@ fun TenantDetailScreen(
         EndTenancyDialog(
             defaultDate = LocalDate.now(),
             onDismiss = { endTenancyId = null },
-            onConfirm = { date ->
-                viewModel.endTenancy(id, date)
-                endTenancyId = null
-            },
+            onConfirm = { date, onResult -> viewModel.endTenancy(id, date, onResult) },
         )
-    }
-}
-
-@Composable
-private fun TenantStat(label: String, value: String, modifier: Modifier = Modifier) {
-    OutlinedCard(modifier = modifier, shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
     }
 }
 
@@ -363,7 +353,7 @@ private fun TenantStat(label: String, value: String, modifier: Modifier = Modifi
 private fun EditTenantDialog(
     summary: TenantSummary,
     onDismiss: () -> Unit,
-    onSave: (TenantRepository.TenantDraft) -> Unit,
+    onSave: (TenantRepository.TenantDraft, (Boolean) -> Unit) -> Unit,
 ) {
     var name by remember { mutableStateOf(summary.tenant.name) }
     var mobile by remember { mutableStateOf(summary.tenant.mobile) }
@@ -373,103 +363,125 @@ private fun EditTenantDialog(
     var idNumber by remember { mutableStateOf(summary.tenant.idNumber) }
     var notes by remember { mutableStateOf(summary.tenant.notes) }
     var idMenu by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit tenant") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Full name") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it },
-                    label = { Text("Mobile") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = alternateMobile,
-                    onValueChange = { alternateMobile = it },
-                    label = { Text("Alternate mobile") },
-                    singleLine = true,
-                )
-                Box {
-                    OutlinedButton(onClick = { idMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("ID: ${idType.label()}", modifier = Modifier.weight(1f))
-                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = idMenu, onDismissRequest = { idMenu = false }) {
-                        IdType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label()) },
-                                onClick = {
-                                    idType = type
-                                    idMenu = false
-                                },
-                            )
-                        }
+    HrmDialog(
+        title = "Edit tenant",
+        confirmLabel = "Save",
+        onDismiss = onDismiss,
+        busy = saving,
+        onConfirm = {
+            error = when {
+                name.trim().length < 2 -> "Enter the tenant's name"
+                !Validators.isValidMobile(mobile) ->
+                    "Enter a valid 10-digit mobile number or leave it blank"
+                !Validators.isValidMobile(alternateMobile) ->
+                    "Enter a valid alternate mobile number or leave it blank"
+                else -> null
+            }
+            if (error == null) {
+                saving = true
+                onSave(
+                    TenantRepository.TenantDraft(
+                        name = name,
+                        mobile = mobile,
+                        alternateMobile = alternateMobile,
+                        address = address,
+                        idType = idType,
+                        idNumber = idNumber,
+                        notes = notes,
+                    ),
+                ) { ok ->
+                    saving = false
+                    if (ok) {
+                        onDismiss()
+                    } else {
+                        error = "Could not save the tenant. Please try again."
                     }
                 }
-                if (idType != IdType.NONE) {
-                    OutlinedTextField(
-                        value = idNumber,
-                        onValueChange = { idNumber = it },
-                        label = { Text("ID number") },
-                        singleLine = true,
-                    )
-                }
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Address") },
-                    minLines = 2,
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes") },
-                    minLines = 2,
-                )
-                Text(
-                    "Historical bills keep the name and rent that applied when they were issued.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onSave(
-                        TenantRepository.TenantDraft(
-                            name = name,
-                            mobile = mobile,
-                            alternateMobile = alternateMobile,
-                            address = address,
-                            idType = idType,
-                            idNumber = idNumber,
-                            notes = notes,
-                        ),
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Full name *") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = mobile,
+            onValueChange = { mobile = it },
+            label = { Text("Mobile") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = alternateMobile,
+            onValueChange = { alternateMobile = it },
+            label = { Text("Alternate mobile") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box {
+            OutlinedButton(onClick = { idMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("ID: ${idType.label()}", modifier = Modifier.weight(1f))
+                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = idMenu, onDismissRequest = { idMenu = false }) {
+                IdType.entries.forEach { type ->
+                    DropdownMenuItem(
+                        text = { Text(type.label()) },
+                        onClick = {
+                            idType = type
+                            idMenu = false
+                        },
                     )
-                },
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+                }
+            }
+        }
+        if (idType != IdType.NONE) {
+            OutlinedTextField(
+                value = idNumber,
+                onValueChange = { idNumber = it },
+                label = { Text("ID number") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it },
+            label = { Text("Address") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Notes") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Historical bills keep the name and rent that applied when they were issued.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (error != null) {
+            Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+        }
+    }
 }
 
 @Composable
 private fun StartTenancyDialog(
     vacantRooms: List<RoomOccupancy>,
     onDismiss: () -> Unit,
-    onStart: (UUID, Long, Long, LocalDate, String) -> Unit,
+    onStart: (UUID, Long, Long, LocalDate, String, (Boolean) -> Unit) -> Unit,
 ) {
     var roomId by remember { mutableStateOf<UUID?>(vacantRooms.firstOrNull()?.room?.id) }
     var rent by remember { mutableStateOf("") }
@@ -477,82 +489,87 @@ private fun StartTenancyDialog(
     var date by remember { mutableStateOf(LocalDate.now()) }
     var notes by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Start tenancy") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                if (vacantRooms.isEmpty()) {
-                    Text(
-                        "No vacant rooms. End an existing tenancy before starting a new one.",
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                } else {
-                    vacantRooms.forEach { occupancy ->
-                        FilterChip(
-                            selected = roomId == occupancy.room.id,
-                            onClick = {
-                                roomId = occupancy.room.id
-                                if (rent.isBlank()) {
-                                    rent = (occupancy.room.defaultRentPaise / 100.0).toString()
-                                }
-                            },
-                            label = { Text("Room ${occupancy.room.roomNumber}") },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+    HrmDialog(
+        title = "Start tenancy",
+        confirmLabel = "Start",
+        onDismiss = onDismiss,
+        busy = saving,
+        confirmEnabled = vacantRooms.isNotEmpty(),
+        onConfirm = {
+            val id = roomId
+            val rentPaise = parseMoneyToPaise(rent)
+            val depositPaise = parseMoneyToPaise(deposit) ?: 0L
+            error = when {
+                id == null -> "Select a vacant room"
+                rentPaise == null || rentPaise <= 0 -> "Enter a valid monthly rent"
+                depositPaise < 0 -> "Deposit cannot be negative"
+                else -> null
+            }
+            if (error == null) {
+                saving = true
+                onStart(id!!, rentPaise!!, depositPaise, date, notes) { ok ->
+                    saving = false
+                    if (ok) {
+                        onDismiss()
+                    } else {
+                        error = "Could not start the tenancy. Please try again."
                     }
-                    OutlinedTextField(
-                        value = rent,
-                        onValueChange = { rent = it },
-                        label = { Text("Monthly rent (₹)") },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = deposit,
-                        onValueChange = { deposit = it },
-                        label = { Text("Security deposit (₹)") },
-                        singleLine = true,
-                    )
-                    DateField(
-                        label = "Joining date",
-                        date = date,
-                        onDateChange = { date = it },
-                    )
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        label = { Text("Notes") },
-                        minLines = 2,
-                    )
-                }
-                if (error != null) {
-                    Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val id = roomId
-                    val rentPaise = parseMoneyToPaise(rent)
-                    val depositPaise = parseMoneyToPaise(deposit) ?: 0L
-                    if (id == null) {
-                        error = "Select a vacant room"
-                    } else if (rentPaise == null || rentPaise <= 0) {
-                        error = "Enter a valid monthly rent"
-                    } else if (depositPaise < 0) {
-                        error = "Deposit cannot be negative"
-                    } else {
-                        onStart(id, rentPaise, depositPaise, date, notes)
-                    }
-                },
-                enabled = vacantRooms.isNotEmpty(),
-            ) { Text("Start") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        if (vacantRooms.isEmpty()) {
+            Text(
+                "No vacant rooms. End an existing tenancy before starting a new one.",
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else {
+            vacantRooms.forEach { occupancy ->
+                FilterChip(
+                    selected = roomId == occupancy.room.id,
+                    onClick = {
+                        roomId = occupancy.room.id
+                        if (rent.isBlank()) {
+                            rent = (occupancy.room.defaultRentPaise / 100.0).toString()
+                        }
+                    },
+                    label = { Text("Room ${occupancy.room.roomNumber}") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            OutlinedTextField(
+                value = rent,
+                onValueChange = { rent = it },
+                label = { Text("Monthly rent (₹) *") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = deposit,
+                onValueChange = { deposit = it },
+                label = { Text("Security deposit (₹)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DateField(
+                label = "Joining date",
+                date = date,
+                onDateChange = { date = it },
+            )
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes") },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (error != null) {
+            Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+        }
+    }
 }

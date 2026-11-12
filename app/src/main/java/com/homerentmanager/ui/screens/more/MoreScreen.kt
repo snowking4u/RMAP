@@ -2,7 +2,6 @@ package com.homerentmanager.ui.screens.more
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,13 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Backup
-import androidx.compose.material.icons.outlined.ElectricBolt
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Insights
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,9 +24,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homerentmanager.ui.Routes
+import com.homerentmanager.ui.components.HrmIcons
 import com.homerentmanager.ui.components.HrmScaffold
 import com.homerentmanager.ui.components.InfoBanner
 import com.homerentmanager.ui.components.SectionHeader
+import com.homerentmanager.ui.components.hrmPagePadding
 
 @Composable
 fun MoreScreen(onNavigate: (String) -> Unit) {
@@ -46,7 +40,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = hrmPagePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
@@ -54,7 +48,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.History,
+                    icon = HrmIcons.History,
                     title = "Tenancy history",
                     subtitle = "Every past and active tenancy with dates and rent",
                     onClick = { onNavigate(Routes.HISTORY) },
@@ -62,7 +56,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.ElectricBolt,
+                    icon = HrmIcons.Electricity,
                     title = "Electricity",
                     subtitle = "Meter readings, units and consumption charges",
                     onClick = { onNavigate(Routes.ELECTRICITY) },
@@ -70,7 +64,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.Payments,
+                    icon = HrmIcons.Payments,
                     title = "Payments",
                     subtitle = "All receipts, partial payments and PDF receipts",
                     onClick = { onNavigate(Routes.PAYMENTS) },
@@ -78,7 +72,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.Insights,
+                    icon = HrmIcons.Reports,
                     title = "Reports",
                     subtitle = "Monthly performance, ageing, methods and CSV export",
                     onClick = { onNavigate(Routes.REPORTS) },
@@ -86,7 +80,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.Backup,
+                    icon = HrmIcons.Backup,
                     title = "Backup & restore",
                     subtitle = "Encrypted manual backups, validation and Auto Backup status",
                     onClick = { onNavigate(Routes.BACKUP) },
@@ -94,7 +88,7 @@ fun MoreScreen(onNavigate: (String) -> Unit) {
             }
             item {
                 MoreRow(
-                    icon = Icons.Outlined.Settings,
+                    icon = HrmIcons.Settings,
                     title = "Settings",
                     subtitle = "Property details, billing defaults and reminders",
                     onClick = { onNavigate(Routes.SETTINGS) },

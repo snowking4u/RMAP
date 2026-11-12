@@ -51,7 +51,8 @@ class BillDetailViewModel(
         method: PaymentMethod,
         reference: String,
         notes: String,
-    ) = runAction {
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         val payment = container.billingRepository.recordPayment(
             billId = billId,
             amountPaise = amountPaise,

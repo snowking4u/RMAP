@@ -31,7 +31,8 @@ class RoomsViewModel(private val container: AppContainer) : HrmViewModel() {
         rentPaise: Long,
         rate: Double,
         notes: String,
-    ) = runAction {
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         container.roomRepository.addRoom(number, floor, rentPaise, rate, notes)
         notify("Room added")
     }
@@ -43,15 +44,17 @@ class RoomsViewModel(private val container: AppContainer) : HrmViewModel() {
         rentPaise: Long,
         rate: Double,
         notes: String,
-    ) = runAction {
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
         container.roomRepository.updateRoom(roomId, number, floor, rentPaise, rate, notes)
         notify("Room updated")
     }
 
-    fun setRoomActive(roomId: UUID, active: Boolean) = runAction {
-        container.roomRepository.setRoomActive(roomId, active)
-        notify(if (active) "Room restored" else "Room archived. Its history is preserved.")
-    }
+    fun setRoomActive(roomId: UUID, active: Boolean, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.roomRepository.setRoomActive(roomId, active)
+            notify(if (active) "Room restored" else "Room archived. Its history is preserved.")
+        }
 }
 
 data class RoomDetailUiState(
@@ -84,14 +87,21 @@ class RoomDetailViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RoomDetailUiState())
 
-    fun updateRoom(number: String, floor: String, rentPaise: Long, rate: Double, notes: String) =
-        runAction {
-            container.roomRepository.updateRoom(roomId, number, floor, rentPaise, rate, notes)
-            notify("Room updated")
-        }
-
-    fun endTenancy(tenancyId: UUID, leaveDate: LocalDate) = runAction {
-        container.tenantRepository.endTenancy(tenancyId, leaveDate)
-        notify("Tenancy ended. Historical bills are preserved.")
+    fun updateRoom(
+        number: String,
+        floor: String,
+        rentPaise: Long,
+        rate: Double,
+        notes: String,
+        onResult: (Boolean) -> Unit = {},
+    ) = runActionWithResult(onResult) {
+        container.roomRepository.updateRoom(roomId, number, floor, rentPaise, rate, notes)
+        notify("Room updated")
     }
+
+    fun endTenancy(tenancyId: UUID, leaveDate: LocalDate, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.tenantRepository.endTenancy(tenancyId, leaveDate)
+            notify("Tenancy ended. Historical bills are preserved.")
+        }
 }
