@@ -53,6 +53,9 @@ interface TenancyDao {
     @Update
     suspend fun update(tenancy: TenancyEntity)
 
+    @Query("SELECT COUNT(*) FROM tenancies WHERE room_id = :roomId")
+    suspend fun countForRoom(roomId: UUID): Int
+
     @Query("SELECT COUNT(*) FROM tenancies")
     suspend fun count(): Int
 }

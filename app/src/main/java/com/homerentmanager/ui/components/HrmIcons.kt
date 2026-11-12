@@ -6,6 +6,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ElectricMeter
 import androidx.compose.material.icons.outlined.FileOpen
@@ -50,6 +51,7 @@ object HrmIcons {
     val EditRoom: ImageVector = Icons.Outlined.Edit
     val EditTenant: ImageVector = Icons.Outlined.Edit
     val Archive: ImageVector = Icons.Outlined.Archive
+    val Delete: ImageVector = Icons.Outlined.Delete
     val Unarchive: ImageVector = Icons.Outlined.Unarchive
     val DownloadPdf: ImageVector = Icons.Outlined.PictureAsPdf
     val Print: ImageVector = Icons.Outlined.Print

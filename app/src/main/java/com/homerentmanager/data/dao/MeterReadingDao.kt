@@ -62,6 +62,12 @@ interface MeterReadingDao {
     @Query("UPDATE meter_readings SET bill_id = :billId WHERE id = :readingId")
     suspend fun attachToBill(readingId: UUID, billId: UUID)
 
+    @Query("DELETE FROM meter_readings WHERE id = :readingId")
+    suspend fun deleteById(readingId: UUID): Int
+
+    @Query("SELECT COUNT(*) FROM meter_readings WHERE room_id = :roomId")
+    suspend fun countForRoom(roomId: UUID): Int
+
     @Query("SELECT COUNT(*) FROM meter_readings")
     suspend fun count(): Int
 }

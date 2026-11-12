@@ -50,6 +50,12 @@ interface PaymentDao {
     @Insert
     suspend fun insert(payment: PaymentEntity)
 
+    @Query(
+        "SELECT COUNT(*) FROM payments p INNER JOIN bills b ON b.id = p.bill_id " +
+            "WHERE b.room_id = :roomId",
+    )
+    suspend fun countForRoom(roomId: UUID): Int
+
     @Query("SELECT COUNT(*) FROM payments")
     suspend fun count(): Int
 }

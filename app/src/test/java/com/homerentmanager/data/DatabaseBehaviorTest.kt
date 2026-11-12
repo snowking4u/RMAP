@@ -258,6 +258,32 @@ class DatabaseBehaviorTest {
     }
 
     @Test
+    fun `unused rooms can be deleted but rooms with history cannot`() = runBlocking {
+        val unusedId = rooms.addRoom("14", "", 800_000, 8.0, "")
+        rooms.deleteRoom(unusedId)
+        assertNull(provider.database.roomDao().getById(unusedId))
+
+        val linkedId = rooms.addRoom("15", "", 800_000, 8.0, "")
+        tenants.createTenant(
+            draft("Omar", "9000000013"),
+            TenantRepository.NewTenancy(
+                roomId = linkedId,
+                monthlyRentPaise = 800_000,
+                securityDepositPaise = 0,
+                joinDate = LocalDate.of(2026, 7, 1),
+            ),
+        )
+
+        try {
+            rooms.deleteRoom(linkedId)
+            fail("A room with linked history must not be deleted")
+        } catch (_: ConflictException) {
+        }
+
+        assertNotNull(provider.database.roomDao().getById(linkedId))
+    }
+
+    @Test
     fun `next bill uses the latest room reading as previous automatically`() = runBlocking {
         val room = provider.database.roomDao().getAll().first()
         tenants.createTenant(
@@ -370,33 +396,64 @@ class DatabaseBehaviorTest {
     }
 
     @Test
-    fun `bill without payments can be deleted while its reading is retained`() = runBlocking {
+    fun `deleting the latest bill restores its previous reading for regeneration`() = runBlocking {
         val room = provider.database.roomDao().getAll().first()
         tenants.createTenant(
             draft("Kiran", "9000000009"),
             TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
         )
         val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
-        val billId = billing.generateBill(
-            BillingRepository.BillRequest(tenancy.id, "2026-01", 1250.0, 8.0),
+        billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 100.0, 8.0),
         )
-        val readingsBefore = provider.database.meterReadingDao().count()
+        val billId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-02", 115.0, 8.0),
+        )
 
         billing.deleteBill(billId)
 
         assertNull(billing.getBill(billId))
-        assertEquals(readingsBefore, provider.database.meterReadingDao().count())
         assertNull(billing.getReadingForBill(billId))
+        assertEquals(1, provider.database.meterReadingDao().count())
         assertEquals(
-            1250.0,
-            provider.database.meterReadingDao().getAll().single().currentReading,
-            0.0001,
-        )
-        assertEquals(
-            1250.0,
+            100.0,
             ElectricityRepository(provider).latestForRoom(room.id)!!.currentReading,
             0.0001,
         )
+
+        val regeneratedId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-02", 115.0, 8.0),
+        )
+        val regeneratedReading = billing.getReadingForBill(regeneratedId)!!
+        assertEquals(100.0, regeneratedReading.previousReading, 0.0001)
+        assertEquals(115.0, regeneratedReading.currentReading, 0.0001)
+        assertEquals(15.0, regeneratedReading.units, 0.0001)
+    }
+
+    @Test
+    fun `bill deletion is blocked when newer bills and readings exist`() = runBlocking {
+        val room = provider.database.roomDao().getAll().first()
+        tenants.createTenant(
+            draft("Nisha", "9000000012"),
+            TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
+        )
+        val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
+        val firstId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 100.0, 8.0),
+        )
+        val secondId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-02", 115.0, 8.0),
+        )
+
+        try {
+            billing.deleteBill(firstId)
+            fail("An older bill with newer history must not be deleted")
+        } catch (_: ConflictException) {
+        }
+
+        assertNotNull(billing.getBill(firstId))
+        assertNotNull(billing.getBill(secondId))
+        assertEquals(2, provider.database.meterReadingDao().count())
     }
 
     @Test

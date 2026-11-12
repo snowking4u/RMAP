@@ -55,6 +55,12 @@ class RoomsViewModel(private val container: AppContainer) : HrmViewModel() {
             container.roomRepository.setRoomActive(roomId, active)
             notify(if (active) "Room restored" else "Room archived. Its history is preserved.")
         }
+
+    fun deleteRoom(roomId: UUID, onResult: (Boolean) -> Unit = {}) =
+        runActionWithResult(onResult) {
+            container.roomRepository.deleteRoom(roomId)
+            notify("Room deleted")
+        }
 }
 
 data class RoomDetailUiState(

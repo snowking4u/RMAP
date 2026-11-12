@@ -69,6 +69,7 @@ fun RoomsScreen(
     var editing by remember { mutableStateOf<RoomOccupancy?>(null) }
     var adding by remember { mutableStateOf(false) }
     var archiving by remember { mutableStateOf<RoomOccupancy?>(null) }
+    var deleting by remember { mutableStateOf<RoomOccupancy?>(null) }
 
     val activeRooms = state.rooms.filter { it.room.isActive }
     val archivedRooms = state.rooms.size - activeRooms.size
@@ -130,6 +131,7 @@ fun RoomsScreen(
                             viewModel.setRoomActive(occupancy.room.id, true)
                         }
                     },
+                    onDelete = { deleting = occupancy },
                 )
             }
 
@@ -169,6 +171,21 @@ fun RoomsScreen(
             onDismiss = { archiving = null },
         )
     }
+
+    deleting?.let { room ->
+        ConfirmDialog(
+            title = "Delete room ${room.room.roomNumber}?",
+            message = "This permanently deletes the room only if it has no tenants, tenancies, " +
+                "bills, payments or meter readings. Rooms with history are blocked; archive " +
+                "them instead to keep their data safe.",
+            confirmLabel = "Delete",
+            onConfirm = {
+                viewModel.deleteRoom(room.room.id)
+                deleting = null
+            },
+            onDismiss = { deleting = null },
+        )
+    }
 }
 
 @Composable
@@ -177,6 +194,7 @@ private fun RoomCard(
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onToggleActive: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val room = occupancy.room
     val active = room.isActive
@@ -297,6 +315,15 @@ private fun RoomCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(if (active) "Archive" else "Restore")
+                }
+                TextButton(onClick = onDelete) {
+                    Icon(
+                        HrmIcons.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Delete")
                 }
             }
         }

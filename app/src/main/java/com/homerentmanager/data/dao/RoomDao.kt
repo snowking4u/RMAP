@@ -63,6 +63,9 @@ interface RoomDao {
     @Update
     suspend fun update(room: RoomEntity)
 
+    @Query("DELETE FROM rooms WHERE id = :roomId")
+    suspend fun deleteById(roomId: UUID): Int
+
     @Query("SELECT COUNT(*) FROM rooms")
     suspend fun count(): Int
 

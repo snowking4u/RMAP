@@ -64,6 +64,12 @@ interface BillDao {
     @Query("DELETE FROM bills WHERE id = :billId")
     suspend fun deleteById(billId: UUID): Int
 
+    @Query("SELECT COUNT(*) FROM bills WHERE room_id = :roomId")
+    suspend fun countForRoom(roomId: UUID): Int
+
+    @Query("SELECT COUNT(*) FROM bills WHERE room_id = :roomId AND billing_month > :month")
+    suspend fun countLaterForRoom(roomId: UUID, month: String): Int
+
     @Query(
         "UPDATE bills SET paid_paise = :paidPaise, status = :status, updated_at = :updatedAt " +
             "WHERE id = :billId",

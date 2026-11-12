@@ -110,8 +110,9 @@ class BillingRepository(private val provider: DatabaseProvider) {
         readingDao.getForBill(billId)
 
     /**
-     * Deletes a bill only when it has no payment records. The linked meter reading is kept
-     * as an append-only historical record; the database foreign key clears its bill link.
+     * Deletes a bill only when it has no payment records and no newer bills or meter readings
+     * depend on it. The linked reading is removed with the bill in the same transaction so the
+     * next bill for that period starts from the original previous reading again.
      */
     suspend fun deleteBill(billId: UUID) {
         provider.database.withTransaction {
@@ -122,6 +123,20 @@ class BillingRepository(private val provider: DatabaseProvider) {
                     "This bill has payment records and cannot be deleted. " +
                         "Historical payments are preserved.",
                 )
+            }
+
+            val reading = readingDao.getForBill(bill.id)
+            val latestReading = readingDao.getLatestForRoom(bill.roomId)
+            val laterBills = billDao.countLaterForRoom(bill.roomId, bill.billingMonth)
+            if (laterBills > 0 || (reading != null && latestReading?.id != reading.id)) {
+                throw ConflictException(
+                    "This bill cannot be deleted because newer bills or meter readings exist " +
+                        "for this room. Delete the newer bills first. No data was changed.",
+                )
+            }
+
+            if (reading != null) {
+                readingDao.deleteById(reading.id)
             }
             billDao.deleteById(bill.id)
         }

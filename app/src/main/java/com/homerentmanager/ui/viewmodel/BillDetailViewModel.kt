@@ -69,7 +69,7 @@ class BillDetailViewModel(
 
     fun deleteBill(onResult: (Boolean) -> Unit = {}) = runActionWithResult(onResult) {
         container.billingRepository.deleteBill(billId)
-        notify("Bill deleted. The meter reading history is preserved.")
+        notify("Bill deleted. Its meter reading was reset for regeneration.")
     }
 
     fun regenerateBill(onResult: (UUID?) -> Unit = {}) {
