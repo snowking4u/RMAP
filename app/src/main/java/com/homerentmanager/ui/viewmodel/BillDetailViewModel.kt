@@ -3,6 +3,8 @@ package com.homerentmanager.ui.viewmodel
 import androidx.lifecycle.viewModelScope
 import android.net.Uri
 import com.homerentmanager.AppContainer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import com.homerentmanager.data.entity.PaymentMethod
 import com.homerentmanager.data.entity.SettingsEntity
 import com.homerentmanager.data.model.BillWithDetails
@@ -65,6 +67,26 @@ class BillDetailViewModel(
         notify("Payment recorded. Receipt ${payment.receiptNumber}")
     }
 
+    fun deleteBill(onResult: (Boolean) -> Unit = {}) = runActionWithResult(onResult) {
+        container.billingRepository.deleteBill(billId)
+        notify("Bill deleted. The meter reading history is preserved.")
+    }
+
+    fun regenerateBill(onResult: (UUID?) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val newBillId = container.billingRepository.regenerateBill(billId)
+                notify("Bill regenerated with the original meter reading.")
+                onResult(newBillId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notify(friendlyMessage(e))
+                onResult(null)
+            }
+        }
+    }
+
     fun clearLastPayment() {
         lastPaymentId.value = null
     }
@@ -75,8 +97,9 @@ class BillDetailViewModel(
                 ?: error("Bill not found")
             val payments = container.billingRepository.observePaymentsForBill(billId).first()
                 .map { it.payment }
+            val reading = container.billingRepository.getReadingForBill(billId)
             val settings = container.settingsRepository.get()
-            container.pdfService.createInvoiceFile(settings, detail, payments)
+            container.pdfService.createInvoiceFile(settings, detail, payments, reading)
         } catch (e: Exception) {
             notify(friendlyMessage(e))
             null

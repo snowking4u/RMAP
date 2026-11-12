@@ -17,7 +17,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -338,6 +340,140 @@ class DatabaseBehaviorTest {
             .associateBy { it.roomId }
         assertEquals(120.0, latest.getValue(roomA.id).currentReading, 0.0001)
         assertEquals(50.0, latest.getValue(roomB.id).currentReading, 0.0001)
+    }
+
+    @Test
+    fun `bill keeps its original linked reading for later invoices`() = runBlocking {
+        val room = provider.database.roomDao().getAll().first()
+        tenants.createTenant(
+            draft("Jaya", "9000000008"),
+            TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
+        )
+        val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
+        val january = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 1300.0, 8.0),
+        )
+        val januaryReading = billing.getReadingForBill(january)!!
+
+        billing.generateBill(BillingRepository.BillRequest(tenancy.id, "2026-02", 1350.0, 9.0))
+
+        val historical = billing.getReadingForBill(january)!!
+        assertEquals(januaryReading.id, historical.id)
+        assertEquals(0.0, historical.previousReading, 0.0001)
+        assertEquals(1300.0, historical.currentReading, 0.0001)
+        assertEquals(1300.0, historical.units, 0.0001)
+        assertEquals(8.0, historical.ratePerUnit, 0.0001)
+        assertEquals(1_040_000L, historical.amountPaise)
+        val oldBill = billing.getBill(january)!!
+        assertEquals(8.0, oldBill.electricityRate, 0.0001)
+        assertEquals(1_040_000L, oldBill.electricityAmountPaise)
+    }
+
+    @Test
+    fun `bill without payments can be deleted while its reading is retained`() = runBlocking {
+        val room = provider.database.roomDao().getAll().first()
+        tenants.createTenant(
+            draft("Kiran", "9000000009"),
+            TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
+        )
+        val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
+        val billId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 1250.0, 8.0),
+        )
+        val readingsBefore = provider.database.meterReadingDao().count()
+
+        billing.deleteBill(billId)
+
+        assertNull(billing.getBill(billId))
+        assertEquals(readingsBefore, provider.database.meterReadingDao().count())
+        assertNull(billing.getReadingForBill(billId))
+        assertEquals(
+            1250.0,
+            provider.database.meterReadingDao().getAll().single().currentReading,
+            0.0001,
+        )
+        assertEquals(
+            1250.0,
+            ElectricityRepository(provider).latestForRoom(room.id)!!.currentReading,
+            0.0001,
+        )
+    }
+
+    @Test
+    fun `bill with payment records cannot be deleted or regenerated`() = runBlocking {
+        val room = provider.database.roomDao().getAll().first()
+        tenants.createTenant(
+            draft("Lata", "9000000010"),
+            TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
+        )
+        val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
+        val billId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 1300.0, 8.0),
+        )
+        billing.recordPayment(
+            billId,
+            10_000,
+            LocalDate.of(2026, 1, 10),
+            PaymentMethod.CASH,
+            "",
+            "",
+        )
+
+        try {
+            billing.deleteBill(billId)
+            fail("A bill with payments must not be deleted")
+        } catch (_: ConflictException) {
+        }
+        try {
+            billing.regenerateBill(billId)
+            fail("A bill with payments must not be regenerated")
+        } catch (_: ConflictException) {
+        }
+
+        assertNotNull(billing.getBill(billId))
+        assertEquals(1, provider.database.paymentDao().count())
+        assertEquals(10_000L, billing.getBill(billId)!!.paidPaise)
+    }
+
+    @Test
+    fun `regenerating a bill reuses its reading without advancing the meter`() = runBlocking {
+        val room = provider.database.roomDao().getAll().first()
+        tenants.createTenant(
+            draft("Mohan", "9000000011"),
+            TenantRepository.NewTenancy(room.id, 800_000, 0, LocalDate.of(2026, 1, 1)),
+        )
+        val tenancy = provider.database.tenancyDao().getActiveForRoom(room.id)!!
+        val originalId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-01", 1300.0, 8.0),
+        )
+        val original = billing.getBill(originalId)!!
+        val originalReading = billing.getReadingForBill(originalId)!!
+        val readingsBefore = provider.database.meterReadingDao().count()
+
+        val regeneratedId = billing.regenerateBill(originalId)
+
+        assertNotEquals(originalId, regeneratedId)
+        assertNull(billing.getBill(originalId))
+        val regenerated = billing.getBill(regeneratedId)!!
+        assertEquals(original.billingMonth, regenerated.billingMonth)
+        assertEquals(original.totalPaise, regenerated.totalPaise)
+        assertEquals(original.electricityUnits, regenerated.electricityUnits, 0.0001)
+        assertEquals(original.electricityRate, regenerated.electricityRate, 0.0001)
+        assertEquals(original.electricityAmountPaise, regenerated.electricityAmountPaise)
+        assertEquals(readingsBefore, provider.database.meterReadingDao().count())
+        val reused = billing.getReadingForBill(regeneratedId)!!
+        assertEquals(originalReading.id, reused.id)
+        assertEquals(originalReading.previousReading, reused.previousReading, 0.0001)
+        assertEquals(originalReading.currentReading, reused.currentReading, 0.0001)
+
+        val nextId = billing.generateBill(
+            BillingRepository.BillRequest(tenancy.id, "2026-02", 1350.0, 8.0),
+        )
+        val nextReading = billing.getReadingForBill(nextId)!!
+        assertEquals(1300.0, nextReading.previousReading, 0.0001)
+        assertEquals(50.0, nextReading.units, 0.0001)
+        assertEquals(readingsBefore + 1, provider.database.meterReadingDao().count())
+        assertEquals(1, billing.observeForMonth("2026-01").first().size)
     }
 
     private fun draft(name: String, mobile: String) = TenantRepository.TenantDraft(

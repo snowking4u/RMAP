@@ -74,12 +74,13 @@ class PdfService(private val context: Context) {
         settings: SettingsEntity,
         detail: BillWithDetails,
         payments: List<PaymentEntity>,
+        reading: MeterReadingEntity?,
     ): File = withContext(Dispatchers.IO) {
         val directory = File(context.cacheDir, "pdfs").apply { mkdirs() }
         val file = File(directory, invoiceFileName(detail.bill))
         FileOutputStream(file).use { output ->
             val document = PdfDocument()
-            drawInvoice(document, settings, detail, payments)
+            drawInvoice(document, settings, detail, payments, reading)
             document.writeTo(output)
             document.close()
         }
@@ -160,6 +161,7 @@ class PdfService(private val context: Context) {
         settings: SettingsEntity,
         detail: BillWithDetails,
         payments: List<PaymentEntity>,
+        reading: MeterReadingEntity?,
     ) {
         val bill = detail.bill
         val writer = DocWriter(document, "Invoice ${bill.billNumber}")
@@ -239,6 +241,41 @@ class PdfService(private val context: Context) {
             aligns = listOf(Paint.Align.LEFT, Paint.Align.RIGHT, Paint.Align.RIGHT, Paint.Align.RIGHT),
         )
         y += 22f
+        if (reading != null) {
+            y += 4f
+            writer.drawLabel("ELECTRICITY DETAILS", MARGIN, y)
+            y += 16f
+            writer.drawSummaryRow(
+                "Previous reading",
+                reading.previousReading.formatUnits(),
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Current reading",
+                reading.currentReading.formatUnits(),
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Units consumed",
+                "${bill.electricityUnits.formatUnits()} units",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Rate per unit",
+                "Rs. ${bill.electricityRate.formatRateNumber()}/unit",
+                y,
+            )
+            y += 16f
+            writer.drawSummaryRow(
+                "Electricity charges",
+                bill.electricityAmountPaise.toPdfRupees(),
+                y,
+            )
+            y += 20f
+        }
         if (bill.additionalChargesPaise > 0) {
             writer.drawTableRow(
                 y,

@@ -59,6 +59,9 @@ interface MeterReadingDao {
     @Insert
     suspend fun insert(reading: MeterReadingEntity)
 
+    @Query("UPDATE meter_readings SET bill_id = :billId WHERE id = :readingId")
+    suspend fun attachToBill(readingId: UUID, billId: UUID)
+
     @Query("SELECT COUNT(*) FROM meter_readings")
     suspend fun count(): Int
 }

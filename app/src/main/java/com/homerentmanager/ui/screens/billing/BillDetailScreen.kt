@@ -93,6 +93,9 @@ fun BillDetailScreen(
 
     var paymentOpen by remember { mutableStateOf(false) }
     var receiptSaveId by remember { mutableStateOf<UUID?>(null) }
+    var actionsOpen by remember { mutableStateOf(false) }
+    var deleteOpen by remember { mutableStateOf(false) }
+    var regenerateOpen by remember { mutableStateOf(false) }
 
     val saveInvoiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/pdf"),
@@ -141,6 +144,32 @@ fun BillDetailScreen(
         message = message,
         onMessageShown = viewModel::messageShown,
         onBack = onBack,
+        actions = {
+            Box {
+                IconButton(onClick = { actionsOpen = true }) {
+                    Icon(HrmIcons.More, contentDescription = "Bill actions")
+                }
+                DropdownMenu(
+                    expanded = actionsOpen,
+                    onDismissRequest = { actionsOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Regenerate bill") },
+                        onClick = {
+                            actionsOpen = false
+                            regenerateOpen = true
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete bill") },
+                        onClick = {
+                            actionsOpen = false
+                            deleteOpen = true
+                        },
+                    )
+                }
+            }
+        },
     ) { padding ->
         if (state.loading) {
             LoadingBox(Modifier.padding(padding))
@@ -428,6 +457,61 @@ fun BillDetailScreen(
             }
 
             item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+
+    if (deleteOpen) {
+        val hasPayments = state.payments.isNotEmpty()
+        HrmDialog(
+            title = "Delete bill",
+            confirmLabel = "Delete",
+            onDismiss = { deleteOpen = false },
+            confirmEnabled = !hasPayments,
+            onConfirm = {
+                viewModel.deleteBill { ok ->
+                    deleteOpen = false
+                    if (ok) onBack()
+                }
+            },
+        ) {
+            Text(
+                if (hasPayments) {
+                    "This bill has ${state.payments.size} payment record(s). " +
+                        "It cannot be deleted because historical payments must be preserved."
+                } else {
+                    "Delete this bill? The original meter reading and tenancy history are " +
+                        "preserved, and you can generate this billing month again."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+
+    if (regenerateOpen) {
+        val hasPayments = state.payments.isNotEmpty()
+        HrmDialog(
+            title = "Regenerate bill",
+            confirmLabel = "Regenerate",
+            onDismiss = { regenerateOpen = false },
+            confirmEnabled = !hasPayments,
+            onConfirm = {
+                viewModel.regenerateBill { newBillId ->
+                    regenerateOpen = false
+                    if (newBillId != null) onBack()
+                }
+            },
+        ) {
+            Text(
+                if (hasPayments) {
+                    "This bill has ${state.payments.size} payment record(s). " +
+                        "It cannot be regenerated because historical payments must be preserved."
+                } else {
+                    "Replace this bill with a regenerated bill for the same billing period? " +
+                        "It will keep the original meter readings, receive a new unique id, " +
+                        "and will not create a duplicate meter reading."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 

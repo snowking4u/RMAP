@@ -110,6 +110,61 @@ class BillingRepository(private val provider: DatabaseProvider) {
         readingDao.getForBill(billId)
 
     /**
+     * Deletes a bill only when it has no payment records. The linked meter reading is kept
+     * as an append-only historical record; the database foreign key clears its bill link.
+     */
+    suspend fun deleteBill(billId: UUID) {
+        provider.database.withTransaction {
+            val bill = billDao.getById(billId) ?: throw NotFoundException("Bill not found")
+            val payments = paymentDao.getForBill(bill.id)
+            if (payments.isNotEmpty() || bill.paidPaise > 0) {
+                throw ConflictException(
+                    "This bill has payment records and cannot be deleted. " +
+                        "Historical payments are preserved.",
+                )
+            }
+            billDao.deleteById(bill.id)
+        }
+    }
+
+    /**
+     * Replaces a bill with a new bill and a new unique id, keeping the original billing
+     * period and original meter reading. The reading is re-linked instead of duplicated, so
+     * regenerating never advances the meter twice.
+     */
+    suspend fun regenerateBill(billId: UUID): UUID = try {
+        provider.database.withTransaction {
+            val old = billDao.getById(billId) ?: throw NotFoundException("Bill not found")
+            val payments = paymentDao.getForBill(old.id)
+            if (payments.isNotEmpty() || old.paidPaise > 0) {
+                throw ConflictException(
+                    "This bill has payment records and cannot be regenerated. " +
+                        "Historical payments are preserved.",
+                )
+            }
+            val reading = readingDao.getForBill(old.id)
+            billDao.deleteById(old.id)
+
+            val now = Instant.now()
+            val regenerated = old.copy(
+                id = UUID.randomUUID(),
+                billDate = LocalDate.now(),
+                createdAt = now,
+                updatedAt = now,
+            )
+            billDao.insert(regenerated)
+            if (reading != null) {
+                readingDao.attachToBill(reading.id, regenerated.id)
+            }
+            regenerated.id
+        }
+    } catch (e: SQLiteConstraintException) {
+        throw ConflictException(
+            "A bill already exists for this room and month. No data was changed.",
+        )
+    }
+
+    /**
      * Creates one bill (and, when readings are supplied, the linked meter reading) in one
      * transaction. The unique (room, month) index plus this check make duplicates impossible.
      */

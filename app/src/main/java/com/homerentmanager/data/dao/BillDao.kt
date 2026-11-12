@@ -61,6 +61,9 @@ interface BillDao {
     @Insert
     suspend fun insert(bill: BillEntity)
 
+    @Query("DELETE FROM bills WHERE id = :billId")
+    suspend fun deleteById(billId: UUID): Int
+
     @Query(
         "UPDATE bills SET paid_paise = :paidPaise, status = :status, updated_at = :updatedAt " +
             "WHERE id = :billId",
