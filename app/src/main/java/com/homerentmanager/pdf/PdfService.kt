@@ -183,7 +183,7 @@ class PdfService(private val context: Context) {
             if (detail.tenant.address.isNotBlank()) add(detail.tenant.address)
             add("Room ${detail.room.roomNumber}" + detail.room.floor.takeIf { it.isNotBlank() }?.let { " • $it" }.orEmpty())
         }
-        writer.drawTextBlock(tenantLines, MARGIN, y, 250f, 9.5f, 13f, INK)
+        writer.drawTextBlock(tenantLines, MARGIN, y, 250f, 10.5f, 14f, INK)
 
         val meta = listOf(
             "Billing month" to monthLabel(bill.billingMonth),
@@ -193,11 +193,11 @@ class PdfService(private val context: Context) {
         )
         var metaY = y
         meta.forEach { (label, value) ->
-            writer.drawText(label, 350f, metaY, 8f, MUTED)
-            writer.drawText(value, 555f, metaY, 9.5f, INK, align = Paint.Align.RIGHT)
+            writer.drawText(label, 350f, metaY, 9f, MUTED)
+            writer.drawText(value, 555f, metaY, 10.5f, INK, align = Paint.Align.RIGHT)
             metaY += 14f
         }
-        y += tenantLines.size * 13f + 18f
+        y += tenantLines.size * 14f + 18f
 
         val statusColor = when (bill.status) {
             BillStatus.PAID -> GREEN
@@ -305,18 +305,18 @@ class PdfService(private val context: Context) {
         y += 4f
         writer.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, LINE)
         y += 18f
-        writer.drawText("TOTAL", 350f, y, 10f, MUTED, bold = true)
-        writer.drawText(bill.totalPaise.toPdfRupees(), 555f, y, 15f, INK, bold = true, align = Paint.Align.RIGHT)
+        writer.drawText("TOTAL", 350f, y, 11f, MUTED, bold = true)
+        writer.drawText(bill.totalPaise.toPdfRupees(), 555f, y, 17f, INK, bold = true, align = Paint.Align.RIGHT)
         y += 18f
-        writer.drawText("Paid", 350f, y, 9.5f, MUTED)
-        writer.drawText(bill.paidPaise.toPdfRupees(), 555f, y, 9.5f, GREEN, align = Paint.Align.RIGHT)
+        writer.drawText("Paid", 350f, y, 10.5f, MUTED)
+        writer.drawText(bill.paidPaise.toPdfRupees(), 555f, y, 10.5f, GREEN, align = Paint.Align.RIGHT)
         y += 15f
-        writer.drawText("Balance due", 350f, y, 10.5f, INK, bold = true)
+        writer.drawText("Balance due", 350f, y, 11.5f, INK, bold = true)
         writer.drawText(
             (bill.totalPaise - bill.paidPaise).coerceAtLeast(0).toPdfRupees(),
             555f,
             y,
-            12f,
+            13.5f,
             if (bill.status == BillStatus.PAID) GREEN else RED,
             bold = true,
             align = Paint.Align.RIGHT,
@@ -326,7 +326,7 @@ class PdfService(private val context: Context) {
         writer.drawLabel("PAYMENT HISTORY", MARGIN, y)
         y += 16f
         if (payments.isEmpty()) {
-            writer.drawText("No payments recorded yet.", MARGIN, y, 9.5f, MUTED)
+            writer.drawText("No payments recorded yet.", MARGIN, y, 10.5f, MUTED)
             y += 20f
         } else {
             writer.drawTableHeader(
@@ -376,7 +376,7 @@ class PdfService(private val context: Context) {
             if (writer.wasNewPage) y = writer.currentY
             writer.drawLabel("NOTES", MARGIN, y)
             y += 14f
-            y = writer.drawWrapped(bill.notes ?: "", MARGIN, y, 555f, 9f, MUTED, 12f)
+            y = writer.drawWrapped(bill.notes ?: "", MARGIN, y, 555f, 10f, MUTED, 13f)
             y += 8f
         }
 
@@ -389,15 +389,15 @@ class PdfService(private val context: Context) {
             "Please pay the outstanding balance by ${bill.dueDate.formatDisplay()}.",
             MARGIN,
             y,
-            8.5f,
+            9.5f,
             MUTED,
         )
-        y += 12f
+        y += 13f
         writer.drawText(
             "This is a computer-generated invoice from ${settings.propertyName}.",
             MARGIN,
             y,
-            8.5f,
+            9.5f,
             MUTED,
         )
         writer.finish()
@@ -429,7 +429,7 @@ class PdfService(private val context: Context) {
             if (tenant.address.isNotBlank()) add(tenant.address)
             add("Room ${receipt.roomNumber}")
         }
-        writer.drawTextBlock(tenantLines, MARGIN, y, 250f, 9.5f, 13f, INK)
+        writer.drawTextBlock(tenantLines, MARGIN, y, 250f, 10.5f, 14f, INK)
         var metaY = y
         listOf(
             "Paid by" to tenant.name,
@@ -439,24 +439,24 @@ class PdfService(private val context: Context) {
             "Billing month" to monthLabel(bill.billingMonth),
             "Reference" to payment.reference.ifBlank { "—" },
         ).forEach { (label, value) ->
-            writer.drawText(label, 350f, metaY, 8f, MUTED)
-            writer.drawText(value, 555f, metaY, 9.2f, INK, align = Paint.Align.RIGHT)
+            writer.drawText(label, 350f, metaY, 9f, MUTED)
+            writer.drawText(value, 555f, metaY, 10.2f, INK, align = Paint.Align.RIGHT)
             metaY += 14f
         }
 
-        y = maxOf(y + tenantLines.size * 13f + 20f, metaY + 12f)
+        y = maxOf(y + tenantLines.size * 14f + 20f, metaY + 12f)
         writer.currentY = y
         writer.ensureSpace(120f)
         y = writer.currentY
         val box = RectF(MARGIN, y, PAGE_WIDTH - MARGIN, y + 78f)
         val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TEAL_LIGHT }
         writer.canvas.drawRoundRect(box, 10f, 10f, boxPaint)
-        writer.drawText("AMOUNT RECEIVED", MARGIN + 18f, y + 24f, 9f, TEAL, bold = true)
+        writer.drawText("AMOUNT RECEIVED", MARGIN + 18f, y + 24f, 10f, TEAL, bold = true)
         writer.drawText(
             receipt.currentPaymentPaise.toPdfRupees(),
             MARGIN + 18f,
             y + 56f,
-            25f,
+            28f,
             INK,
             bold = true,
         )
@@ -464,7 +464,7 @@ class PdfService(private val context: Context) {
             if (receipt.outstandingPaise == 0L) "Bill fully paid" else "Allocated to this invoice",
             555f,
             y + 56f,
-            9f,
+            10f,
             MUTED,
             align = Paint.Align.RIGHT,
         )
@@ -474,9 +474,9 @@ class PdfService(private val context: Context) {
             MARGIN,
             y,
             555f,
-            9f,
+            10f,
             INK,
-            12f,
+            13f,
         )
         y = wordsBottom + 18f
 
@@ -537,12 +537,12 @@ class PdfService(private val context: Context) {
         }
         writer.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, LINE)
         y += 17f
-        writer.drawText("Original bill total", MARGIN, y, 10.5f, INK, bold = true)
+        writer.drawText("Original bill total", MARGIN, y, 11.5f, INK, bold = true)
         writer.drawText(
             receipt.billTotalPaise.toPdfRupees(),
             555f,
             y,
-            12f,
+            13.5f,
             INK,
             bold = true,
             align = Paint.Align.RIGHT,
@@ -562,12 +562,12 @@ class PdfService(private val context: Context) {
         y += 17f
         writer.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, LINE)
         y += 18f
-        writer.drawText("Outstanding after this payment", MARGIN, y, 10.5f, INK, bold = true)
+        writer.drawText("Outstanding after this payment", MARGIN, y, 11.5f, INK, bold = true)
         writer.drawText(
             receipt.outstandingPaise.toPdfRupees(),
             555f,
             y,
-            12f,
+            13.5f,
             if (receipt.outstandingPaise == 0L) GREEN else RED,
             bold = true,
             align = Paint.Align.RIGHT,
@@ -617,14 +617,14 @@ class PdfService(private val context: Context) {
             "Thank you for your payment. This receipt is computer generated and valid without a signature.",
             MARGIN,
             y,
-            8.5f,
+            9.5f,
             MUTED,
         )
         y += 36f
         writer.drawLine(400f, y, 555f, y, MUTED)
         y += 12f
-        writer.drawText("Authorised signatory", 400f, y, 8.5f, MUTED)
-        writer.drawText(settings.propertyName, 400f, y + 12f, 9f, INK, bold = true)
+        writer.drawText("Authorised signatory", 400f, y, 9.5f, MUTED)
+        writer.drawText(settings.propertyName, 400f, y + 12f, 10f, INK, bold = true)
         writer.finish()
     }
 
@@ -636,22 +636,22 @@ class PdfService(private val context: Context) {
     ) {
         val canvas = writer.canvas
         canvas.drawRect(0f, 0f, PAGE_WIDTH.toFloat(), 102f, Paint().apply { color = TEAL })
-        writer.drawText(settings.propertyName.ifBlank { "Home Rentals" }, MARGIN, 42f, 20f, Color.WHITE, bold = true)
+        writer.drawText(settings.propertyName.ifBlank { "Home Rentals" }, MARGIN, 42f, 22f, Color.WHITE, bold = true)
         if (settings.propertyAddress.isNotBlank()) {
-            writer.drawText(settings.propertyAddress.take(95), MARGIN, 61f, 8.5f, 0xFFD1FAE5.toInt())
+            writer.drawText(settings.propertyAddress.take(95), MARGIN, 61f, 9.2f, 0xFFD1FAE5.toInt())
         }
         val ownerLine = listOfNotNull(
             settings.ownerName.takeIf { it.isNotBlank() },
             settings.ownerMobile.takeIf { it.isNotBlank() }?.let { "Mobile: $it" },
         ).joinToString("  •  ")
-        if (ownerLine.isNotBlank()) writer.drawText(ownerLine, MARGIN, 76f, 8.5f, 0xFFD1FAE5.toInt())
-        writer.drawText(title, 555f, 42f, 20f, Color.WHITE, bold = true, align = Paint.Align.RIGHT)
-        writer.drawText(subtitle, 555f, 61f, 9f, 0xFFD1FAE5.toInt(), align = Paint.Align.RIGHT)
+        if (ownerLine.isNotBlank()) writer.drawText(ownerLine, MARGIN, 76f, 9.2f, 0xFFD1FAE5.toInt())
+        writer.drawText(title, 555f, 42f, 22f, Color.WHITE, bold = true, align = Paint.Align.RIGHT)
+        writer.drawText(subtitle, 555f, 61f, 10f, 0xFFD1FAE5.toInt(), align = Paint.Align.RIGHT)
         writer.drawText(
             "Generated ${LocalDateTime.now().format(generatedFormatter)}",
             555f,
             76f,
-            7.5f,
+            8.2f,
             0xFFD1FAE5.toInt(),
             align = Paint.Align.RIGHT,
         )
@@ -691,7 +691,7 @@ class PdfService(private val context: Context) {
             if (currentY + required > PAGE_HEIGHT - 58f) {
                 endPage()
                 beginPage()
-                drawText("$documentLabel (continued)", MARGIN, MARGIN, 10f, TEAL, bold = true)
+                drawText("$documentLabel (continued)", MARGIN, MARGIN, 11f, TEAL, bold = true)
                 currentY = MARGIN + 22f
                 wasNewPage = true
             } else {
@@ -706,14 +706,14 @@ class PdfService(private val context: Context) {
                 "Home Rent Manager • Page $pageNumber",
                 MARGIN,
                 PAGE_HEIGHT - 28f,
-                7.5f,
+                8.2f,
                 MUTED,
             )
             drawText(
                 documentLabel,
                 PAGE_WIDTH - MARGIN,
                 PAGE_HEIGHT - 28f,
-                7.5f,
+                8.2f,
                 MUTED,
                 align = Paint.Align.RIGHT,
             )
@@ -740,7 +740,7 @@ class PdfService(private val context: Context) {
         }
 
         fun drawLabel(text: String, x: Float, y: Float) {
-            drawText(text, x, y, 7.5f, MUTED, bold = true)
+            drawText(text, x, y, 8.5f, MUTED, bold = true)
         }
 
         fun drawLine(x1: Float, y1: Float, x2: Float, y2: Float, color: Int) {
@@ -817,7 +817,7 @@ class PdfService(private val context: Context) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.color = Color.WHITE
-                textSize = 8f
+                textSize = 9f
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
             }
             val width = textPaint.measureText(text) + 18f
@@ -838,7 +838,7 @@ class PdfService(private val context: Context) {
                 Paint().apply { color = 0xFFF1F5F9.toInt() },
             )
             columns.forEachIndexed { index, (label, x) ->
-                drawText(label, x, y - 1f, 7.8f, MUTED, bold = true, align = aligns[index])
+                drawText(label, x, y - 1f, 8.6f, MUTED, bold = true, align = aligns[index])
             }
         }
 
@@ -858,14 +858,14 @@ class PdfService(private val context: Context) {
                 )
             }
             columns.forEachIndexed { index, (value, x) ->
-                drawText(value, x, y - 1f, 8.8f, INK, align = aligns[index])
+                drawText(value, x, y - 1f, 9.6f, INK, align = aligns[index])
             }
             drawLine(MARGIN, y + 6f, PAGE_WIDTH - MARGIN, y + 6f, 0xFFF1F5F9.toInt())
         }
 
         fun drawSummaryRow(label: String, value: String, y: Float) {
-            drawText(label, MARGIN, y, 9.5f, MUTED)
-            drawText(value, 555f, y, 9.5f, INK, align = Paint.Align.RIGHT)
+            drawText(label, MARGIN, y, 10.5f, MUTED)
+            drawText(value, 555f, y, 10.5f, INK, align = Paint.Align.RIGHT)
         }
     }
 
